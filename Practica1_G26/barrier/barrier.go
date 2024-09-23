@@ -91,14 +91,16 @@ func main() {
 	quitChannel := make(chan bool)
 	receivedMap := make(map[string]bool)
 	barrierChan := make(chan bool)
+	var wg sync.WaitGroup // Waiting Group for the process' routines
 
 	// Start accepting connections
 	go func() {
-		for {
+		stop := false
+		for !stop {
 			select {
 			case <-quitChannel:
 				fmt.Println("Stopping the listener...")
-				break
+				stop = true
 			default:
 				conn, err := listener.Accept()
 				if err != nil {
@@ -109,11 +111,13 @@ func main() {
 			}
 		}
 	}()
-
+	
 	// Notify other processes
 	for i, ep := range endpoints {
 		if i+1 != lineNumber {
+			wg.Add(1) // Add one routine to the waiting list
 			go func(ep string) {
+				defer wg.Done() // Substract one routine from the waiting list
 				for {
 					conn, err := net.Dial("tcp", ep)
 					if err != nil {
@@ -133,9 +137,18 @@ func main() {
 			}(ep)
 		}
 	}
+
 	// Wait for all processes to reach the barrier
-    fmt.Println("Waiting for all the processes to reach the barrier")
-    	<-barrierChan
-    fmt.Println("All processes have reached the barrier. Closing...")
+	fmt.Println("Waiting for all the processes to reach the barrier")
+		<-barrierChan
+
+	// Stop the Listening loop
+	close(quitChannel)
+
+	// Wait for the process routines to finish
+	wg.Wait()
+	
+	// Close
+	fmt.Println("All processes have reached the barrier. Closing...")
 	listener.Close()
 }
