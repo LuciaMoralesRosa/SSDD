@@ -133,6 +133,9 @@ func main() {
 			}(ep)
 		}
 	}
-	fmt.Println("Waiting for all the processes to reach the barrier")
+	// Wait for all processes to reach the barrier
+    fmt.Println("Waiting for all the processes to reach the barrier")
+    	<-barrierChan
+    fmt.Println("All processes have reached the barrier. Closing...")
 	listener.Close()
 }
