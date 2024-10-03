@@ -12,10 +12,13 @@ package main
 
 import (
 	"encoding/gob"
+	"fmt"
 	"log"
 	"net"
 	"os"
+	"os/exec"
 	"practica1/com"
+	"strings"
 )
 
 // enviarTarea establece una conexión con un trabajador remoto y le envía un
@@ -51,13 +54,18 @@ func enviarTarea(ip string, interval com.TPInterval, id int) ([]int, error) {
 	return reply.Primes, nil
 }
 
+// go run server_MW_Master.go 192.168.3.2:8080 a816906 /Practica1_G26/cmd/server-draft/serv-worker/server_MW_Worker.go
 func main() {
 	args := os.Args
-	if len(args) != 2 {
-		log.Println("Error: endpoint missing: go run serv_MW_Master.go ip:port")
+	if len(args) != 4 {
+		log.Println("Error: endpoint missing: go run serv_MW_Master.go ip:port usuario ruta       ")
 		os.Exit(1)
 	}
 	endpoint := args[1]
+
+	usuario := args[2] // a816906
+	ruta := args[3]    // /Practica1_G26/cmd/server-draft/serv-worker/server_MW_Worker.go
+	//ruta = ruta + "/server_MW_Worker.go"
 
 	// Creacion del listener con la direccion proporcionada
 	listener, err := net.Listen("tcp", endpoint)
@@ -85,6 +93,21 @@ func main() {
 		//Definimos las maquinas trabajadoras
 		workers := []string{"192.168.3.3:8081",
 			"192.168.3.4:8082"}
+
+		// Ruta del fichero a ejecutar
+
+		// Ejecución remota de los Workers
+		for i, worker := range workers {
+			rutaFichero := fmt.Sprintf("go run /misc/alumnos/sd/sd2425/%s%s 192.168.3.808%d", usuario, ruta, i)
+			// go run /misc/alumnos/sd/sd2425/a816906/Practica1_G26/cmd/server-draft/serv-worker/server_MW_Worker.go 192.168.3.8081
+			ipSinPuerto := strings.Split(worker, ":")[0]
+			cmd := exec.Command("ssh ", fmt.Sprintf("%s@%s", usuario, ipSinPuerto), rutaFichero)
+			output, err := cmd.CombinedOutput() // Captura la salida y errores
+			if err != nil {
+				fmt.Printf("Error ejecutando en %s: %s\n", worker, err)
+			}
+			fmt.Printf("Salida de %s:\n%s\n", worker, output)
+		}
 
 		var resultados []int
 
