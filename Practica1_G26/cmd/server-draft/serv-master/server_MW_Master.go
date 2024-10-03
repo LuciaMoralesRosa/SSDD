@@ -1,11 +1,13 @@
 /*
-* AUTOR: Rafael Tolosana Calasanz y Unai Arronategui
-* ASIGNATURA: 30221 Sistemas Distribuidos del Grado en Ingeniería Informática
-*			Escuela de Ingeniería y Arquitectura - Universidad de Zaragoza
-* FECHA: septiembre de 2022
-* FICHERO: server-draft.go
-* DESCRIPCIÓN: Contiene la funcionalidad de un servidor Master-Worker
- */
+  - AUTOR: Rafael Tolosana Calasanz y Unai Arronategui
+  - Lizer Bernad (779035) y Lucia Morales (816906)
+  - ASIGNATURA: 30221 Sistemas Distribuidos del Grado en Ingeniería Informática
+  - Escuela de Ingeniería y Arquitectura - Universidad de Zaragoza
+  - FECHA: septiembre de 2024
+  - FICHERO: server_MW_Master.go
+  - DESCRIPCIÓN: contiene la funcionalidad de un Master en la arquitectura
+    Master-Worker
+*/
 package main
 
 import (

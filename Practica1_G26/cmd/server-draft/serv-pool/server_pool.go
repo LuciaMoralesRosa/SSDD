@@ -1,9 +1,10 @@
 /*
 * AUTOR: Rafael Tolosana Calasanz y Unai Arronategui
+*		 Lizer Bernad (779035) y Lucia Morales (816906)
 * ASIGNATURA: 30221 Sistemas Distribuidos del Grado en Ingeniería Informática
 *			Escuela de Ingeniería y Arquitectura - Universidad de Zaragoza
-* FECHA: septiembre de 2022
-* FICHERO: server-draft.go
+* FECHA: septiembre de 2024
+* FICHERO: server_pool.go
 * DESCRIPCIÓN: Contiene la funcionalidad de un servidor concurrente con un pool
 * 			   de goroutines para atender las peticiones
  */
@@ -52,6 +53,8 @@ func processRequest(conn net.Conn) {
 	// Para asegurar que la conexión se cierre al terminar la goroutine
 	defer conn.Close()
 
+	// Declaracion de la variable "request" para almacenar la solicitud y
+	// configuracion del decodificador para leer los datos de la conexión "conn"
 	var request com.Request
 	decoder := gob.NewDecoder(conn)
 	err := decoder.Decode(&request)
@@ -92,7 +95,7 @@ func createPool(poolSize int, tarea chan net.Conn) {
 func main() {
 	args := os.Args
 	if len(args) != 2 {
-		log.Println("Error: endpoint missing: go run server.go ip:port")
+		log.Println("Error: endpoint missing: go run server_pool.go ip:port")
 		os.Exit(1)
 	}
 	endpoint := args[1]

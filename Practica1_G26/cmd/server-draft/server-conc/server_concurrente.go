@@ -4,7 +4,7 @@
 * ASIGNATURA: 30221 Sistemas Distribuidos del Grado en Ingeniería Informática
 *			Escuela de Ingeniería y Arquitectura - Universidad de Zaragoza
 * FECHA: septiembre de 2024
-* FICHERO: server-draft.go
+* FICHERO: server_concurrente.go
 * DESCRIPCIÓN: contiene la funcionalidad de un servidor concurrente que crea una
 *			   goroutine por peticion
  */
@@ -49,6 +49,8 @@ func processRequest(conn net.Conn) {
 	// Para asegurar que la conexión se cierre al terminar la goroutine
 	defer conn.Close()
 
+	// Declaracion de la variable "request" para almacenar la solicitud y
+	// configuracion del decodificador para leer los datos de la conexión "conn"
 	var request com.Request
 	decoder := gob.NewDecoder(conn)
 	err := decoder.Decode(&request)
@@ -66,7 +68,7 @@ func processRequest(conn net.Conn) {
 func main() {
 	args := os.Args
 	if len(args) != 2 {
-		log.Println("Error: endpoint missing: go run serv_conc.go ip:port")
+		log.Println("Error: endpoint missing: go run server_concurrente.go ip:port")
 		os.Exit(1)
 	}
 	endpoint := args[1]
@@ -81,6 +83,7 @@ func main() {
 	for {
 		// Aceptar nuevas conexiones
 		conn, err := listener.Accept()
+
 		// Para que el servidor no se cierre de forma abrupta y pueda seguir
 		// aceptando peticiones
 		if err != nil {

@@ -1,12 +1,13 @@
 /*
-* AUTOR: Rafael Tolosana Calasanz y Unai Arronategui
-* ASIGNATURA: 30221 Sistemas Distribuidos del Grado en Ingeniería Informática
-*			Escuela de Ingeniería y Arquitectura - Universidad de Zaragoza
-* FECHA: septiembre de 2022
-* FICHERO: server-draft.go
-* DESCRIPCIÓN: contiene la funcionalidad esencial para realizar los servidores
-*				correspondientes a la práctica 1
- */
+  - AUTOR: Rafael Tolosana Calasanz y Unai Arronategui
+  - Lizer Bernad (779035) y Lucia Morales (816906)
+  - ASIGNATURA: 30221 Sistemas Distribuidos del Grado en Ingeniería Informática
+  - Escuela de Ingeniería y Arquitectura - Universidad de Zaragoza
+  - FECHA: septiembre de 2024
+  - FICHERO: server_MW_Worker.go
+  - DESCRIPCIÓN: contiene la funcionalidad de un Worker en laarquitectura
+    Master-Worker
+*/
 package main
 
 import (
@@ -50,6 +51,8 @@ func processRequest(conn net.Conn) {
 	// Asegura que la conexión se cierre al final de la goroutine
 	defer conn.Close()
 
+	// Declaracion de la variable "request" para almacenar la solicitud y
+	// configuracion del decodificador para leer los datos de la conexión "conn"
 	var request com.Request
 	decoder := gob.NewDecoder(conn)
 	err := decoder.Decode(&request)
