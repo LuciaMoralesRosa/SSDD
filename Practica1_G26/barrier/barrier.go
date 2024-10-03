@@ -111,7 +111,7 @@ func main() {
 			}
 		}
 	}()
-	
+
 	// Notify other processes
 	for i, ep := range endpoints {
 		if i+1 != lineNumber {
@@ -140,14 +140,14 @@ func main() {
 
 	// Wait for all processes to reach the barrier
 	fmt.Println("Waiting for all the processes to reach the barrier")
-		<-barrierChan
+	<-barrierChan
 
 	// Stop the Listening loop
 	close(quitChannel)
 
 	// Wait for the process routines to finish
 	wg.Wait()
-	
+
 	// Close
 	fmt.Println("All processes have reached the barrier. Closing...")
 	listener.Close()
