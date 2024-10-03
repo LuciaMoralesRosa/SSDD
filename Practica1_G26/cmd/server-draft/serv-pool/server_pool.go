@@ -1,22 +1,24 @@
-/**
+/*
 * AUTOR: Rafael Tolosana Calasanz y Unai Arronategui
-* 		 Lizer Bernad (779035) y Lucia Morales (816906)
 * ASIGNATURA: 30221 Sistemas Distribuidos del Grado en Ingeniería Informática
 *			Escuela de Ingeniería y Arquitectura - Universidad de Zaragoza
-* FECHA: septiembre de 2024
+* FECHA: septiembre de 2022
 * FICHERO: server-draft.go
-* DESCRIPCIÓN: contiene la funcionalidad de un servidor concurrente que crea una
-*			   goroutine por peticion
+* DESCRIPCIÓN: Contiene la funcionalidad de un servidor concurrente con un pool
+* 			   de goroutines para atender las peticiones
  */
 package main
 
 import (
 	"encoding/gob"
 	"log"
-	"os"
 	"net"
+	"os"
 	"practica1/com"
 )
+
+// Tamaño del pool de goroutines
+const poolSize = 4
 
 // PRE: verdad = !foundDivisor
 // POST: IsPrime devuelve verdad si n es primo y falso en caso contrario
@@ -41,13 +43,14 @@ func findPrimes(interval com.TPInterval) (primes []int) {
 	return primes
 }
 
-// processRequest maneja la conexión con un cliente y procesa su solicitud.
-// PRE: `conn` es una conexión TCP válida.
-// POST: Decodifica la solicitud, encuentra los números primos y devuelve los
-// resultados al cliente.
-func processRequest(conn net.Conn){
+// processRequest maneja el procesamiento de una solicitud de un cliente.
+// PRE: conn es una conexión TCP establecida.
+// POST: Cierra la conexión una vez procesada la solicitud, decodifica la
+// solicitud, encuentra los primos en el intervalo solicitado y responde al
+// cliente con los resultados.
+func processRequest(conn net.Conn) {
 	// Para asegurar que la conexión se cierre al terminar la goroutine
-	defer conn.Close() 
+	defer conn.Close()
 
 	var request com.Request
 	decoder := gob.NewDecoder(conn)
@@ -61,6 +64,29 @@ func processRequest(conn net.Conn){
 	reply := com.Reply{Id: request.Id, Primes: primes}
 	encoder := gob.NewEncoder(conn)
 	encoder.Encode(&reply)
+}
+
+// worker es una función que actúa como un trabajador.
+// PRE: `tarea` es un canal de conexiones TCP.
+// POST: Procesa cada conexión llamando a `processRequest` para manejar la
+// solicitud y cerrar la conexión. El trabajador estará en un bucle esperando
+// nuevas tareas (conexiones) en el canal.
+func worker(id int, tarea <-chan net.Conn) {
+	for conn := range tarea {
+		log.Println("Trabajador ", id, " - Procesando una nueva conexion")
+		processRequest(conn)
+	}
+}
+
+// createPool crea un conjunto de trabajadores que procesarán las tareas.
+// PRE: poolSize es el número de trabajadores a crear, tarea es un canal donde
+// se recibirán conexiones TCP.
+// POST: Lanza `poolSize` goroutines que ejecutan la función `worker` para
+// procesar conexiones recibidas en el canal `tarea`.
+func createPool(poolSize int, tarea chan net.Conn) {
+	for i := 1; i <= poolSize; i++ {
+		go worker(i, tarea)
+	}
 }
 
 func main() {
@@ -78,18 +104,18 @@ func main() {
 	log.SetFlags(log.Lshortfile | log.Lmicroseconds)
 	log.Println("***** Listening for new connection in endpoint ", endpoint)
 
+	// Crear el canal para las tareas
+	tarea := make(chan net.Conn)
+
+	// Crear el pool de workers
+	createPool(poolSize, tarea)
+
 	for {
 		// Aceptar nuevas conexiones
 		conn, err := listener.Accept()
-		// Para que el servidor no se cierre de forma abrupta y pueda seguir
-		// aceptando peticiones
-		if err != nil {
-			log.Println("Error accepting connection: ", err)
-			continue
-		}
 		com.CheckError(err)
-		
-		// Lanzamos una goroutine para la peticion
-		go processRequest(conn)
+
+		// Enviar la conexion al canal
+		tarea <- conn
 	}
 }

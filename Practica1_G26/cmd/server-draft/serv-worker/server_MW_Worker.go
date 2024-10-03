@@ -11,9 +11,10 @@ package main
 
 import (
 	"encoding/gob"
+	"fmt"
 	"log"
-	"os"
 	"net"
+	"os"
 	"practica1/com"
 )
 
@@ -45,7 +46,7 @@ func findPrimes(interval com.TPInterval) (primes []int) {
 // POST: Cierra la conexión una vez procesada la solicitud, decodifica la
 // solicitud, encuentra los primos en el intervalo solicitado y responde al
 // cliente con los resultados.
-func processRequest(conn net.Conn){
+func processRequest(conn net.Conn) {
 	// Asegura que la conexión se cierre al final de la goroutine
 	defer conn.Close()
 
@@ -67,18 +68,22 @@ func processRequest(conn net.Conn){
 func main() {
 	args := os.Args
 	if len(args) != 2 {
-		log.Println("Error: endpoint missing: go run server.go ip:port")
+		log.Println("Error: endpoint missing: go run serv_MW_Worker.go ip:port")
 		os.Exit(1)
 	}
 	endpoint := args[1]
 
 	// Creacion del listener con la direccion proporcionada
 	listener, err := net.Listen("tcp", endpoint)
-	com.CheckError(err)
-	defer Listener.Close()
+	if err != nil {
+		fmt.Println("Error starting TCP worker:", err)
+		os.Exit(1)
+	}
+	defer listener.Close()
 
 	log.SetFlags(log.Lshortfile | log.Lmicroseconds)
-	log.Println("***** Listening for new connection in endpoint ", endpoint)
+	log.Println("***** Listening for new connection in endpoint from Master ",
+		endpoint)
 
 	for {
 		conn, err := listener.Accept()
