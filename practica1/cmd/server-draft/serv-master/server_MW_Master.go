@@ -54,7 +54,7 @@ func enviarTarea(ip string, interval com.TPInterval, id int) ([]int, error) {
 	return reply.Primes, nil
 }
 
-// go run server_MW_Master.go 192.168.3.2:8080 a816906 /Practica1_G26/cmd/server-draft/serv-worker/server_MW_Worker.go
+// go run server_MW_Master.go 192.168.3.2:8080 a816906 /practica1/cmd/server-draft/serv-worker/server_MW_Worker.go
 func main() {
 	args := os.Args
 	if len(args) != 4 {
