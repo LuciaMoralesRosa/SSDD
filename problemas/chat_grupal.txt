@@ -1,0 +1,29 @@
+Proceso Escritor:
+1. Pide Permiso
+2. Espera Confirmacion
+3. Añadir mensaje
+4. Manda Mensaje
+5. Espera Confirmacion Mensaje
+6. Liberar Permiso
+
+Proceso Lector:
+1. Recibe Solicitud
+2. Confirma Solicitud
+3. Recibe Mensaje
+4. Añade Mensaje
+5. Manda Confirmacion Mensaje
+
+
+Modelo Observador
+------------------
+Usuario Escritor:
+1. Enviar Mensaje
+
+Usuario Lector:
+2. Obtener Mensaje
+3. Añadir mensaje
+
+Gestor:
+1. Recibir mensaje
+2. Añadir mensaje
+3. Mandar mensaje
