@@ -1,87 +1,21 @@
 @startuml
-create Oyente_1
-Proceso_1 -> Oyente_1: crear
-create Escritor_1_2
-Proceso_1 -> Escritor_1_2: crear
-create Escritor_1_N
-Proceso_1 -> Escritor_1_N: crear
+Proceso_1 -> Proceso_2 : mensaje
+Proceso_1 -> Proceso_N : mensaje
 
-create Oyente_2
-Proceso_2 -> Oyente_2: crear
-create Escritor_2_1
-Proceso_2 -> Escritor_2_1: crear
-create Escritor_2_N
-Proceso_2 -> Escritor_2_N: crear
+Proceso_2 -> Proceso_1 : mensaje
+Proceso_2 -> Proceso_N : mensaje
 
-Escritor_1_2 -> Oyente_2: mensaje
-create Manejador_2_1
-Oyente_2 -> Manejador_2_1: aceptar
-Manejador_2_1 -> Escritor_1_2: cerrar
-destroy Escritor_1_2
-destroy Manejador_2_1
+Proceso_N -> Proceso_1 : mensaje
+Proceso_N -> Proceso_2 : mensaje
 
-Escritor_2_1 -> Oyente_1: mensaje
-create Manejador_1_2
-Oyente_1 -> Manejador_1_2: aceptar
-Manejador_1_2 -> Escritor_2_1: cerrar
-destroy Escritor_2_1
-destroy Manejador_1_2
+Proceso_1 -> Proceso_2: barrera_1
+Proceso_1 -> Proceso_N: barrera_1
 
-create Oyente_N
-Proceso_N -> Oyente_N: crear
-create Escritor_N_1
-Proceso_N -> Escritor_N_1: crear
-create Escritor_N_2
-Proceso_N -> Escritor_N_2: crear
 
-Escritor_1_N -> Oyente_N: mensaje
-create Manejador_N_1
-Oyente_N -> Manejador_N_1: aceptar
-Escritor_1_N -> Proceso_1: fin
-Manejador_N_1 -> Escritor_1_N: cerrar
-destroy Escritor_1_N
-destroy Manejador_N_1
+Proceso_2 -> Proceso_1: barrera_2
+Proceso_2 -> Proceso_N: barrera_2
 
-Escritor_N_1 -> Oyente_1: mensaje
-create Manejador_1_N
-Oyente_1 -> Manejador_1_N: aceptar
-Manejador_1_N -> Proceso_1: barrera_1
-Manejador_1_N -> Proceso_2: barrera_1
-Manejador_1_N -> Proceso_N: barrera_1
-Manejador_1_N -> Escritor_N_1: cerrar
-destroy Escritor_N_1
-destroy Manejador_1_N
+Proceso_N -> Proceso_1: barrera_N
+Proceso_N -> Proceso_2: barrera_N
 
-Escritor_2_N -> Oyente_N: mensaje
-create Manejador_N_2
-Oyente_N -> Manejador_N_2: aceptar
-Escritor_2_N -> Proceso_2: fin
-Manejador_N_2 -> Proceso_1: barrera_2
-Manejador_N_2 -> Proceso_2: barrera_2
-Manejador_N_2 -> Proceso_N: barrera_2
-Manejador_N_2 -> Escritor_2_N: cerrar
-destroy Escritor_2_N
-destroy Manejador_N_2
-
-Escritor_N_2 -> Oyente_2: mensaje
-create Manejador_2_N
-Oyente_2 -> Manejador_2_N: aceptar
-Escritor_N_2 -> Proceso_N: fin
-Manejador_2_N -> Proceso_1: barrera_N
-Manejador_2_N -> Proceso_2: barrera_N
-Manejador_2_N -> Proceso_N: barrera_N
-Manejador_2_N -> Escritor_N_2: cerrar
-destroy Escritor_N_2
-destroy Manejador_2_N
-
-Proceso_1 -> Oyente_1: detener
-Proceso_2 -> Oyente_2: detener
-Proceso_N -> Oyente_N: detener
-
-destroy Oyente_1
-Proceso_1 -> Oyente_1: cerrar
-destroy Oyente_2
-Proceso_2 -> Oyente_2: cerrar
-destroy Oyente_N
-Proceso_N -> Oyente_N: cerrar
 @enduml
