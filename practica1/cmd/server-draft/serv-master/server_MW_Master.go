@@ -11,6 +11,7 @@
 package main
 
 import (
+	"bufio"
 	"encoding/gob"
 	"fmt"
 	"log"
@@ -18,9 +19,29 @@ import (
 	"os"
 	"os/exec"
 	"practica1/com"
-	"strconv"
 	"strings"
 )
+
+func readEndpoints(filename string) ([]string, error) {
+	file, err := os.Open(filename)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	var endpoints []string
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if line != "" {
+			endpoints = append(endpoints, line)
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, err
+	}
+	return endpoints, nil
+}
 
 // enviarTarea establece una conexión con un trabajador remoto y le envía un
 // intervalo para que procese.
@@ -38,6 +59,7 @@ func enviarTarea(ip string, interval com.TPInterval, id int) ([]int, error) {
 
 	// Enviar peticion al trabajador
 	encoder := gob.NewEncoder(conn)
+
 	request := com.Request{Id: id, Interval: interval}
 	err = encoder.Encode(request)
 	if err != nil {
@@ -55,27 +77,27 @@ func enviarTarea(ip string, interval com.TPInterval, id int) ([]int, error) {
 	return reply.Primes, nil
 }
 
-// go run server_MW_Master.go 192.168.3.2:8080 a816906 practica1/cmd/server-draft/serv-worker server_MW_Worker.go puerto
 func main() {
+
 	args := os.Args
-	if len(args) != 6 {
-		log.Println("Error: endpoint missing: go run serv_MW_Master.go ip:port usuario ruta fichero puerto")
+	if len(args) != 3 {
+		log.Println("Error: endpoint missing: go run serv_MW_Master.go ip:port ficheroWorkers")
 		os.Exit(1)
 	}
-	endpoint := args[1]
-
-	usuario := args[2] // a816906
-	ruta := args[3]    // cmd/server-draft/serv-worker
-	fichero := args[4] // server_MW_Worker.go
-	puerto, err := strconv.Atoi(args[5])
-	if err != nil {
-		log.Println("Error convirtuendo el puerto a entero:", err)
-	}
+	endpoint := args[1]    // IP del master y puerto para el cliente
+	workersFile := args[2] // fichero con los workers
 
 	// Creacion del listener con la direccion proporcionada
 	listener, err := net.Listen("tcp", endpoint)
 	com.CheckError(err)
 	defer listener.Close()
+
+	// Read endpoints from file
+	endpointsLista, err := readEndpoints(workersFile)
+	if err != nil {
+		fmt.Println("Error reading endpoints:", err)
+		return
+	}
 
 	log.SetFlags(log.Lshortfile | log.Lmicroseconds)
 	log.Println("***** Listening for new connection in endpoint ", endpoint)
@@ -95,47 +117,38 @@ func main() {
 		err = decoder.Decode(&request)
 		com.CheckError(err)
 
-		//Definimos las maquinas trabajadoras
-		workers := []string{fmt.Sprintf("192.168.3.3:%d", puerto),
-			fmt.Sprintf("192.168.3.3:%d", puerto+1)}
-
-		// Ruta del fichero a ejecutar
-
-		// Ejecución remota de los Workers
-		for i, worker := range workers {
-
-			// Creacion de comando con parametros
+		// Arrarancar los workers
+		for _, worker := range endpointsLista {
 			workerSinPuerto := strings.Split(worker, ":")[0]
-			comando := fmt.Sprintf("ssh %s@%s 'cd /misc/alumnos/sd/sd2425/%s/%s; go run %s %s:%d'", usuario, workerSinPuerto, usuario, ruta, fichero, workerSinPuerto, puerto+i)
-
-			// ssh a816906@192.168.3.3 'cd /misc/alumnos/sd/sd2425/a816906/practica1/cmd/server-draft/serv-worker; go run server_MW_Worker.go 192.168.3.3:8081'
-
-			//Creacion comando cutre
-			cmd := exec.Command(comando)
-			output, err := cmd.CombinedOutput() // Captura la salida y errores
+			ipUsuario := "a816906@" + workerSinPuerto
+			cmd := exec.Command("ssh", ipUsuario, "/home/a816906/practica1/cmd/server-draft/serv-worker/./server_MW_Worker", worker)
+			// ssh a816906@192.168.3.3 /home/a816906/practica1/cmd/server-draft/serv-worker/./server_MW_Worker 192.168.3.3:8081
+			cmd.Stdout = os.Stdout
+			cmd.Stderr = os.Stderr
+			err := cmd.Run()
 			if err != nil {
-				fmt.Printf("Error ejecutando en %s: %s\n", worker, err)
+				fmt.Println("Error starting worker "+workerSinPuerto, err)
+				return
 			}
-			fmt.Printf("Salida de %s - (output) ->\n%s\n", worker, output)
-
 		}
 
 		var resultados []int
 
 		// Definimos el tamaño de los intervalos
 		tamIntervalo := (request.Interval.Max - request.Interval.Min + 1) /
-			len(workers)
+			len(endpointsLista)
 
 		// Repartimos el trabajo entre los trabajadores
-		for i, worker := range workers {
+		for i, worker := range endpointsLista {
 			intervaloWorker := com.TPInterval{
 				Min: request.Interval.Min + i*tamIntervalo,
 				Max: request.Interval.Min + (i+1)*tamIntervalo - 1,
 			}
 
 			// Aseguramos que el ultimo trabajador tome el restante
-			if i == len(workers)-1 {
+			if i == len(endpointsLista)-1 {
 				intervaloWorker.Max = request.Interval.Max
+				fmt.Printf("Al worker (%s) le estamos mandando el intervalo hasta el max: %d", worker, request.Interval.Max)
 			}
 
 			// Envio de tarea al trabajador
@@ -144,6 +157,8 @@ func main() {
 				log.Println("Error sending task to worker:", worker, err)
 				continue
 			}
+
+			fmt.Printf("Resultado obtenido del worker: %d", primes)
 
 			// Obtencion de los resulrados
 			resultados = append(resultados, primes...)
@@ -157,4 +172,5 @@ func main() {
 		com.CheckError(err)
 
 	}
+
 }
