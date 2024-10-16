@@ -1,5 +1,6 @@
 /*
 * AUTOR: Rafael Tolosana Calasanz
+* Autores: Lizer Bernad (779035) y Lucia Morales (816906)
 * ASIGNATURA: 30221 Sistemas Distribuidos del Grado en Ingeniería Informática
 *			Escuela de Ingeniería y Arquitectura - Universidad de Zaragoza
 * FECHA: septiembre de 2021
@@ -19,16 +20,17 @@ import (
 type Message interface{}
 
 type MessageSystem struct {
-	mbox  chan Message
-	peers []string
-	done  chan bool
-	me    int
+	mbox  chan Message // Canal de mensajes
+	peers []string // Lista de direcciones IP de los nodos
+	done  chan bool // Controla la finalizacion del sistema
+	me    int // ID del proceso actual
 }
 
 const (
 	MAXMESSAGES = 10000
 )
 
+// Maneja los errores del sistema, mostrandolo por pantalla y terminando la ejecucion
 func checkError(err error) {
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Fatal error: %s", err.Error())
@@ -36,6 +38,7 @@ func checkError(err error) {
 	}
 }
 
+// Lee un fichero que contiene las direcciones IP de los nodos y las guarda en "lines"
 func parsePeers(path string) (lines []string) {
 	file, err := os.Open(path)
 	checkError(err)
@@ -51,16 +54,19 @@ func parsePeers(path string) (lines []string) {
 // Pre: pid en {1..n}, el conjunto de procesos del SD
 // Post: envía el mensaje msg a pid
 func (ms *MessageSystem) Send(pid int, msg Message) {
+	//Envía un mensaje a un proceso pid con TCP. Se conecta al
+	//proceso usando su dirección IP y puerto, y serializa el mensaje con gob
+	//para enviarlo a través de la conexión.
 	conn, err := net.Dial("tcp", ms.peers[pid-1])
 	checkError(err)
 	encoder := gob.NewEncoder(conn)
 	err = encoder.Encode(&msg)
+	//Cierra la conexion
 	conn.Close()
 }
 
 // Pre: True
-// Post: el mensaje msg de algún Proceso P_j se retira del mailbox y se devuelve
-//
+// Post: el mensaje msg de algún Proceso P_j se retira del mailbox y lo devuelve
 //	Si mailbox vacío, Receive bloquea hasta que llegue algún mensaje
 func (ms *MessageSystem) Receive() (msg Message) {
 	msg = <-ms.mbox
@@ -69,7 +75,7 @@ func (ms *MessageSystem) Receive() (msg Message) {
 
 //	messageTypes es un slice con tipos de mensajes que los procesos se pueden intercambiar a través de este ms
 //
-// Hay que registrar un mensaje antes de poder utilizar (enviar o recibir)
+// Hay que registrar un mensaje antes de poder utilizar (enviar o recibir y escribir)
 // Notar que se utiliza en la función New
 func Register(messageTypes []Message) {
 	for _, msgTp := range messageTypes {
@@ -82,12 +88,19 @@ func Register(messageTypes []Message) {
 //	usersFile es la ruta a un fichero de texto que en cada línea contiene IP:puerto de cada participante
 //	messageTypes es un slice con todos los tipos de mensajes que los procesos se pueden intercambiar a través de este ms
 func New(whoIam int, usersFile string, messageTypes []Message) (ms MessageSystem) {
+	// Guarda el pid del proceso que ha inicializado el gestor de mensajes
 	ms.me = whoIam
+	// Obtiene todos los nodos del sistema
 	ms.peers = parsePeers(usersFile)
+	// Creacion de los canales para el paso de mensajes y finalizacion
 	ms.mbox = make(chan Message, MAXMESSAGES)
 	ms.done = make(chan bool)
+	// Registra el tipo de mensajes (Request, Reply y Escribir)
 	Register(messageTypes)
+
 	go func() {
+		// Creacion del Listener TCP que vincula el proceso actual a su IP:Puerto
+		// Escucha conexiones entrantes desde otros procesos del sistema
 		listener, err := net.Listen("tcp", ms.peers[ms.me-1])
 		checkError(err)
 		fmt.Println("Process listening at " + ms.peers[ms.me-1])
@@ -95,14 +108,21 @@ func New(whoIam int, usersFile string, messageTypes []Message) (ms MessageSystem
 		for {
 			select {
 			case <-ms.done:
+				// Si llega un mensaje al canal, se termina la ejecucion
 				return
 			default:
+				// Cuando otro proceso se conecta, acepta la conexion
 				conn, err := listener.Accept()
 				checkError(err)
+				// Decodifica el mensaje entrante y se guarda en en msg
 				decoder := gob.NewDecoder(conn)
 				var msg Message
 				err = decoder.Decode(&msg)
+				// Se cierra la conexion
 				conn.Close()
+
+				// El mensaje se inserta en el canal mailbox 
+				// (Sera consumido en la funcion Receive())
 				ms.mbox <- msg
 			}
 		}
