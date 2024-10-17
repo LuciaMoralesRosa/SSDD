@@ -13,7 +13,6 @@ import (
     "ms"
     "sync"
 	"practica2/ms"
-	"practica2/gestor"
 	"github.com/DistributedClocks/GoVector/govec"
 )
 
@@ -29,6 +28,7 @@ type Reply struct{
 }
 
 type Escribir struct {
+	Fichero string // fichero donde escribir
 	Texto	string // Contenido a escribir
 	Clock	[]byte // Marca temporal vectorial
 }
@@ -39,14 +39,13 @@ type RASharedDB struct {
     HigSeqNum   	int // Numero de secuencia mas alto observado
     OutRepCnt   	int // Respuestas externas pendientes
     ReqCS       	boolean // Indica si el proceso esta solicitando acceso a SC
-    RepDefd     	bool[] //
+    RepDefd     	bool[] // Array de pospuestos
     ms          	*MessageSystem // Gestor de mensajes
     done        	chan bool // Canal para el manejo de la terminacion
     chrep       	chan bool // Canal para el manejo de respuestas
 
 	// Para lectores y escritores
 	procesoEscritor	bool // Indica si el proceso es escritor (true) o lector (false)
-	gestor			*Gestor // Gestor de operaciones de lectura y escritura
 	// Para relojes vectoriales
 	logger			*govec.GoLog // Manejo de relojes vectoriales y trazabilidad distribuida
 	// mutex para proteger concurrencia sobre las variables
@@ -65,15 +64,21 @@ var matrizExclusion = [2][2] bool {
 }
 
 // Inicializa una nueva instancia de RASharedBD
-func New(me int, usersFile string, esEscritor bool, gestor *Gestor, logger *govec.GoLog) (*RASharedDB) {
+func New(me int, usersFile string, esEscritor bool) (*RASharedDB) {
+	// Definicion de los tipos de mensajes que soporta el sistema
     messageTypes := []Message{Request, Reply, Escribir} // Tipos de mensajes
-    msgs = ms.New(me, usersFile string, messageTypes) 
-	nodes = contarLineas(usersFile)
-	// Inicializa la estructura
-    ra := RASharedDB{nodes, 0, 0, 0, false, []int{}, &msgs, make(chan bool),
-		make(chan bool), esEscritor, gestor, logger, &sync.Mutex{}}
+	// Inicializacion del logger
+	logger := govec.InitGoVector("Mi proceso: " + strconv.Itoa(me), "LogFile", govec.GetDefaultLogOptions())
     
-	go recibirMensaje
+	// Creacion del gestor de mensajes
+	msgs = ms.New(me, usersFile string, messageTypes) 
+	nodes = contarLineas(usersFile)
+	// Inicializacion de la estructura ra
+    ra := RASharedDB{nodes, 0, 0, 0, false, make([]bool, nodes), &msgs, make(chan bool),
+		make(chan bool), esEscritor, logger, &sync.Mutex{}}
+
+	// goroutina de recepcion de mensajes
+	go ra.recibirMensaje
     return &ra
 }
 
@@ -81,30 +86,48 @@ func New(me int, usersFile string, esEscritor bool, gestor *Gestor, logger *gove
 func recibirMensaje(){
 	for {
 		msg := ms.Receive()
+		var entrada string
 		switch x := msg.(type) {
 			case Request:
-				// Ha llegado una peticion (tiene Clock, pid solicitante, escritura?)
+				ra.logger.UnpackReceive("Recibir respuesta", x.Clock, &entrada,
+										govec.GetDefaultLogOptions())
 				ra.peticionRecibida(x)
 			case Reply:
+				ra.logger.UnpackReceive("Recibir respuesta", x.Clock, &entrada,
+										govec.GetDefaultLogOptions())
+				ra.respuestaRecibida()
 			case Escribir:
+				ra.logger.UnpackReceive("Recibir escritura: " + x.texto, x.Clock, &entrada,
+										govec.GetDefaultLogOptions())
+				ra.escribir(x.Fichero, x.Texto)			
 		}
 	}
 }
 
+func escribir(fichero string, texto string){
+	ra.gestor.escribirFichero(fichero, texto)
+}
+
+func respuestaRecibida() {
+	ra.chrep <- true
+}
+
 func peticionRecibida(mensaje Request){
+	var posponerPeticion bool
 	ra.Mutex.Lock() // Vamos a bloquear
 	ra.HigSeqNum = Max(ra.HigSeqNum, mensaje.NumeroSecuencia)
 
 	// Se pospone la peticion si: 
 	//	1 - Mi numero de secuencia es menor al numero de secuencia del mensaje
 	//	2 - Los numero de secuencia son iguales pero mi pid es menor
-	posponerPeticion := ra.ReqCS && (ra.OurSeqNum < mensaje.NumeroSecuencia || 
+	posponerPeticion = ra.ReqCS && (ra.OurSeqNum < mensaje.NumeroSecuencia || 
 		(ra.OurSeqNum == mensaje.NumeroSecuencia && ra.ms.Me() < mensaje.pid))
 	
 	ra.Mutex.Unlock()
 
 	// Si se pospone la peticion y soy un proceso escritor o la peticion es de escritura
 	if posponerPeticion && (matrizExclusion[ra.procesoEscritor][mensaje.PeticionEscritura]){
+		ra.logger.LogLocalEvent("Posponer", govec.GetDefaultLogOptions())
 		ra.Mutex.Lock()
 		// Indicamos que se ha pospuesto un mensaje del proceso pid
 		ra.RepDefd[mensaje.pid - 1] = true 
@@ -112,9 +135,19 @@ func peticionRecibida(mensaje Request){
 	}
 	else{
 		// Si no se pospone o es un proceso de lectura y una peticion de lectura
-		envioPreparado := ra.logger.PrepareSend("Enviando respuesta", "Enviar respuesta", govec.GetDefaultLogOptions())
+		datosEnvio := ra.logger.PrepareSend("Enviar respuesta", "Respuesta", govec.GetDefaultLogOptions())
+		ms.Send(mensaje.pid, Reply{datosEnvio})
 	}
-	ms.Send(mesnaje.pid, Reply{})
+}
+
+func escribirTexto(fichero string, texto string) {
+	ra.logger.LogLocalEvent("Indicar escritura", govec.GetDefaultLogOptions())
+	for i := 1 ; i <= ra.nodos ; i++ {
+		if i != ra.ms.Me(){
+			datosEnvio := ra.logger.PrepareSend("Enviar escribir", "Escritura", govec.GetDefaultLogOptions())
+			ra.ms.Send(i, Escribir{fichero, texto, datosEnvio})
+		}
+	}
 }
 
 
@@ -123,8 +156,25 @@ func peticionRecibida(mensaje Request){
 //      Ricart-Agrawala Generalizado
 // Proceso que isgue in proceso cuando quiere acceder a la seccion critica
 func (ra *RASharedDB) PreProtocol(){
-	for(int i = 0; ; i++){
-		ms.Send(i, Request{me})
+	ra.Mutex.Lock()
+	ra.ReqCS = true
+	ra.OurSeqNum = ra.HigSeqNum + 1
+	ra.Mutex.Unlock()
+	ra.OutRepCnt = ra.nodos - 1
+
+	// Enviar peticion a todos menos a mi mismo
+	for(int i := 1; i <= ra.nodos ; i++){
+		if i != ra.ms.Me() {
+			datosEnvio := ra.logger.PrepareSend("Enviar peticion", "Peticion",
+												govec.GetDefaultLogOptions())
+			ms.Send(i, Request{datosEnvio, ra.ms.Me(), ra.procesoEscritor,
+					ra.OurSeqNum})
+		}
+	}
+
+	for ra.OutRepCnt > 0 {
+		_ <- ra.chrep
+		ra.OutRepCnt = ra.OutRepCnt - 1
 	}
     
 }
@@ -134,7 +184,17 @@ func (ra *RASharedDB) PreProtocol(){
 //      Ricart-Agrawala Generalizado
 // El proceso libera la seccion critica y notifica a todos los procesos
 func (ra *RASharedDB) PostProtocol(){
-
+	ra.Mutex.Lock() 
+	ra.ReqCS = false
+	for i := 1 ; i <= ra.nodos ; i++ {
+		if ra.RepDefd[i - 1] {
+			ra.RepDefd[i - 1] = false
+			datosEnvio := ra.logger.PrepareSend("Enviar respuesta", "Respuesta",
+												govec.GetDefaultLogOptions())
+			ra.ms.Send(i, Reply{datosEnvio})
+		}
+	}
+	ra.Mutex.Unlock()
 }
 
 func (ra *RASharedDB) Stop(){
