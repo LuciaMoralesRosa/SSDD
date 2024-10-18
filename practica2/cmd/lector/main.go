@@ -1,9 +1,16 @@
 package main
 
 import (
-
+	"bufio"
+	"fmt"
+	"net"
+	"os"
+	g "practica2/gestor"
+	"practica2/ra"
+	"strconv"
+	"sync"
+	"time"
 )
-
 
 // Maneja los errores del sistema, mostrandolo por pantalla y terminando la ejecucion
 func checkError(err error) {
@@ -52,19 +59,20 @@ func handleConnection(conn net.Conn, barrierChan chan<- bool, received *map[stri
 	mu.Unlock()
 }
 
-func todosNodosConectados(lineNumber int) int {
+func todosNodosConectados(lineNumber int, ficheroUsuarios string) int {
+	var pid string
 	// Read endpoints from file
 	endpoints, err := readEndpoints(ficheroUsuarios)
 	if err != nil {
 		fmt.Println("Error reading endpoints:", err)
-		return
+		os.Exit(1)
 	}
 
 	n := len(endpoints)
 
 	if lineNumber > n {
 		fmt.Printf("Line number %d out of range\n", lineNumber)
-		return
+		os.Exit(1)
 	}
 
 	// Get the endpoint for this process
@@ -72,13 +80,13 @@ func todosNodosConectados(lineNumber int) int {
 	listener, err := net.Listen("tcp", localEndpoint)
 	if err != nil {
 		fmt.Println("Error creating listener:", err)
-		return
+		os.Exit(1)
 	}
 
-
-
 	// Esperar a que todos los procesos se inicialicen
+	var mu sync.Mutex
 	barrierChan := make(chan bool)
+	receivedMap := make(map[string]bool)
 	quitChannel := make(chan bool)
 	var wg sync.WaitGroup // Waiting Group for the process' routines
 
@@ -103,7 +111,7 @@ func todosNodosConectados(lineNumber int) int {
 
 	// Notify other processes
 	for i, ep := range endpoints {
-		if i + 1 != lineNumber {
+		if i+1 != lineNumber {
 			wg.Add(1) // Add one routine to the waiting list
 			go func(ep string) {
 				defer wg.Done() // Substract one routine from the waiting list
@@ -124,9 +132,8 @@ func todosNodosConectados(lineNumber int) int {
 					break
 				}
 			}(ep)
-		}
-		else {
-			pid := ep
+		} else {
+			pid = ep
 		}
 	}
 
@@ -139,12 +146,12 @@ func todosNodosConectados(lineNumber int) int {
 
 	// Wait for the process routines to finish
 	wg.Wait()
-	
-	return pid
+
+	return strconv.Itoa(pid) //Mirar
 }
 
-func leer(ra *ra.RASharedBD, ficheroLectura string){
-	for i := 0; i < 5; i ++ {
+func leer(ra *ra.RASharedDB, ficheroLectura string, gestor *g.Gestor) {
+	for i := 0; i < 5; i++ {
 		ra.PreProtocol()
 		lecturaDeFichero := gestor.leerFichero(ficheroLectura)
 		fmt.Println(lecturaDeFichero)
@@ -153,20 +160,20 @@ func leer(ra *ra.RASharedBD, ficheroLectura string){
 }
 
 func main() {
-	args := os.Args()
-
 	lineNumber, err := strconv.Atoi(os.Args[1])
 	if err != nil || lineNumber < 1 {
 		fmt.Println("Invalid line number")
 		return
 	}
-	
-	ficheroUsuarios := args[2]
+
+	ficheroUsuarios := os.Args[2]
 	procesoEscritor := false
-	ficheroLectura := args[3]
+	ficheroLectura := os.Args[3]
 
-	pid := todosNodosConectados(lineNumber)
-	ra := ra.New(pid, ficheroUsuarios, procesoEscritor)
+	pid := todosNodosConectados(lineNumber, ficheroUsuarios)
+	gestor := g.New()
 
-	go escribir(ra, ficheroEscritura, textoEscritura)
+	ra := ra.New(pid, ficheroUsuarios, procesoEscritor, &gestor)
+
+	go leer(ra, ficheroLectura, &gestor)
 }

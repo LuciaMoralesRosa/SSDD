@@ -5,16 +5,18 @@
 * FECHA: octubre de 2024
 * FICHERO: gestor.go
 * DESCRIPCIÓN: Implementación de un sistema de gestor de escritores y lectores
-*/
+ */
 
-package ra
+package g
 
 import (
 	"fmt"
 	"io/ioutil"
+	"os"
 )
 
-type Gestor struct {}
+type Gestor struct {
+}
 
 // Maneja los errores del sistema, mostrandolo por pantalla y terminando la ejecucion
 func checkError(err error) {
@@ -24,7 +26,11 @@ func checkError(err error) {
 	}
 }
 
-func leerFichero(fichero string) string {
+func New() (g Gestor) {
+	return g
+}
+
+func (g *Gestor) leerFichero(fichero string) string {
 	contenidoFichero, err := ioutil.ReadFile(fichero)
 	checkError(err)
 	return string(contenidoFichero)
@@ -35,15 +41,14 @@ func crearFichero(fichero string) {
 	checkError(err)
 }
 
-func escribirFichero(fichero string, texto string) {
+func (g *Gestor) escribirFichero(fichero string, texto string) {
 	contenidoFichero, err := ioutil.ReadFile(fichero)
 	if os.IsNotExist(err) {
 		crearFichero(fichero)
-		contenidoFichero = ""
-	}
-	else {
+		contenidoFichero = []byte("")
+	} else {
 		checkError(err)
 	}
-	err := ioutil.WriteFile(fichero, []byte(contenidoFichero + texto + "\n"), 0644)
+	err = ioutil.WriteFile(fichero, []byte(append(contenidoFichero, []byte(texto+"\n")...)), 0644)
 	checkError(err)
 }

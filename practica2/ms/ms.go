@@ -21,9 +21,9 @@ type Message interface{}
 
 type MessageSystem struct {
 	mbox  chan Message // Canal de mensajes
-	peers []string // Lista de direcciones IP de los nodos
-	done  chan bool // Controla la finalizacion del sistema
-	me    int // ID del proceso actual
+	peers []string     // Lista de direcciones IP de los nodos
+	done  chan bool    // Controla la finalizacion del sistema
+	me    int          // ID del proceso actual
 }
 
 const (
@@ -36,6 +36,10 @@ func checkError(err error) {
 		fmt.Fprintf(os.Stderr, "Fatal error: %s", err.Error())
 		os.Exit(1)
 	}
+}
+
+func (ms *MessageSystem) Me() int {
+	return ms.me
 }
 
 // Lee un fichero que contiene las direcciones IP de los nodos y las guarda en "lines"
@@ -67,6 +71,7 @@ func (ms *MessageSystem) Send(pid int, msg Message) {
 
 // Pre: True
 // Post: el mensaje msg de algún Proceso P_j se retira del mailbox y lo devuelve
+//
 //	Si mailbox vacío, Receive bloquea hasta que llegue algún mensaje
 func (ms *MessageSystem) Receive() (msg Message) {
 	msg = <-ms.mbox
@@ -121,7 +126,7 @@ func New(whoIam int, usersFile string, messageTypes []Message) (ms MessageSystem
 				// Se cierra la conexion
 				conn.Close()
 
-				// El mensaje se inserta en el canal mailbox 
+				// El mensaje se inserta en el canal mailbox
 				// (Sera consumido en la funcion Receive())
 				ms.mbox <- msg
 			}
