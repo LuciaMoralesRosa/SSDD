@@ -30,7 +30,7 @@ func New() (g Gestor) {
 	return g
 }
 
-func (g *Gestor) leerFichero(fichero string) string {
+func (g *Gestor) LeerFichero(fichero string) string {
 	contenidoFichero, err := ioutil.ReadFile(fichero)
 	checkError(err)
 	return string(contenidoFichero)
@@ -41,7 +41,7 @@ func crearFichero(fichero string) {
 	checkError(err)
 }
 
-func (g *Gestor) escribirFichero(fichero string, texto string) {
+func (g *Gestor) EscribirFichero(fichero string, texto string) {
 	contenidoFichero, err := ioutil.ReadFile(fichero)
 	if os.IsNotExist(err) {
 		crearFichero(fichero)

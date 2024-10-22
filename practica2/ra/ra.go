@@ -68,7 +68,7 @@ var matrizExclusion = [2][2]bool{
 }
 
 // Inicializa una nueva instancia de RASharedBD
-func New(me int, usersFile string, esEscritor bool, g *g.Gestor) *RASharedDB {
+func New(me int, usersFile string, esEscritor bool, g g.Gestor) *RASharedDB {
 	// Definicion de los tipos de mensajes que soporta el sistema
 	messageTypes := []ms.Message{Request{}, Reply{}, Escribir{}} // Tipos de mensajes
 	// Inicializacion del logger
@@ -79,7 +79,7 @@ func New(me int, usersFile string, esEscritor bool, g *g.Gestor) *RASharedDB {
 	nodes := contarLineas(usersFile)
 	// Inicializacion de la estructura ra
 	ra := RASharedDB{nodes, 0, 0, 0, false, make([]bool, nodes), &msgs, make(chan bool),
-		make(chan bool), esEscritor, logger, g, sync.Mutex{}}
+		make(chan bool), esEscritor, logger, &g, sync.Mutex{}}
 
 	// goroutina de recepcion de mensajes
 	go ra.recibirMensaje()
@@ -109,8 +109,7 @@ func (ra *RASharedDB) recibirMensaje() {
 }
 
 func (ra *RASharedDB) escribir(fichero string, texto string) {
-	ra.g.escribirFichero(fichero, texto)
-	ra.ms.Me()
+	ra.g.EscribirFichero(fichero, texto)
 }
 
 func (ra *RASharedDB) respuestaRecibida() {
@@ -144,7 +143,7 @@ func (ra *RASharedDB) peticionRecibida(mensaje Request) {
 	}
 }
 
-func (ra *RASharedDB) escribirTexto(fichero string, texto string) {
+func (ra *RASharedDB) EscribirTexto(fichero string, texto string) {
 	ra.logger.LogLocalEvent("Indicar escritura", govec.GetDefaultLogOptions())
 	for i := 1; i <= ra.nodos; i++ {
 		if i != ra.ms.Me() {

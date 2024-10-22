@@ -59,7 +59,7 @@ func handleConnection(conn net.Conn, barrierChan chan<- bool, received *map[stri
 	mu.Unlock()
 }
 
-func todosNodosConectados(lineNumber int, ficheroUsuarios string) int {
+func todosNodosConectados(lineNumber int, ficheroUsuarios string) string {
 	var pid string
 	// Read endpoints from file
 	endpoints, err := readEndpoints(ficheroUsuarios)
@@ -147,13 +147,13 @@ func todosNodosConectados(lineNumber int, ficheroUsuarios string) int {
 	// Wait for the process routines to finish
 	wg.Wait()
 
-	return strconv.Itoa(pid) //Mirar
+	return pid
 }
 
 func leer(ra *ra.RASharedDB, ficheroLectura string, gestor *g.Gestor) {
 	for i := 0; i < 5; i++ {
 		ra.PreProtocol()
-		lecturaDeFichero := gestor.leerFichero(ficheroLectura)
+		lecturaDeFichero := gestor.LeerFichero(ficheroLectura)
 		fmt.Println(lecturaDeFichero)
 		ra.PostProtocol()
 	}
@@ -170,10 +170,10 @@ func main() {
 	procesoEscritor := false
 	ficheroLectura := os.Args[3]
 
-	pid := todosNodosConectados(lineNumber, ficheroUsuarios)
+	pid, _ := strconv.Atoi(todosNodosConectados(lineNumber, ficheroUsuarios))
 	gestor := g.New()
 
-	ra := ra.New(pid, ficheroUsuarios, procesoEscritor, &gestor)
+	ra := ra.New(pid, ficheroUsuarios, procesoEscritor, gestor)
 
 	go leer(ra, ficheroLectura, &gestor)
 }
