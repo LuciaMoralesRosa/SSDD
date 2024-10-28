@@ -59,8 +59,7 @@ func handleConnection(conn net.Conn, barrierChan chan<- bool, received *map[stri
 	mu.Unlock()
 }
 
-func todosNodosConectados(lineNumber int, ficheroUsuarios string) string {
-	var pid string
+func todosNodosConectados(lineNumber int, ficheroUsuarios string) {
 	// Read endpoints from file
 	endpoints, err := readEndpoints(ficheroUsuarios)
 	if err != nil {
@@ -132,8 +131,6 @@ func todosNodosConectados(lineNumber int, ficheroUsuarios string) string {
 					break
 				}
 			}(ep)
-		} else {
-			pid = ep
 		}
 	}
 
@@ -146,20 +143,20 @@ func todosNodosConectados(lineNumber int, ficheroUsuarios string) string {
 
 	// Wait for the process routines to finish
 	wg.Wait()
-
-	return pid
 }
 
 func leer(ra *ra.RASharedDB, ficheroLectura string, gestor *g.Gestor) {
 	for i := 0; i < 5; i++ {
 		ra.PreProtocol()
 		lecturaDeFichero := gestor.LeerFichero(ficheroLectura)
-		fmt.Println(lecturaDeFichero)
+		fmt.Println("He leido esto: " + lecturaDeFichero)
 		ra.PostProtocol()
 	}
 }
 
 func main() {
+
+	/*go run main.go 2 ../../ms/users.txt ../ficheroTexto*/
 	lineNumber, err := strconv.Atoi(os.Args[1])
 	if err != nil || lineNumber < 1 {
 		fmt.Println("Invalid line number")
@@ -170,10 +167,10 @@ func main() {
 	procesoEscritor := false
 	ficheroLectura := os.Args[3]
 
-	pid, _ := strconv.Atoi(todosNodosConectados(lineNumber, ficheroUsuarios))
+	todosNodosConectados(lineNumber, ficheroUsuarios)
 	gestor := g.New()
 
-	ra := ra.New(pid, ficheroUsuarios, procesoEscritor, gestor)
+	ra := ra.New(lineNumber, ficheroUsuarios, procesoEscritor, gestor)
 
 	go leer(ra, ficheroLectura, &gestor)
 }

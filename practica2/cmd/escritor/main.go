@@ -59,8 +59,7 @@ func handleConnection(conn net.Conn, barrierChan chan<- bool, received *map[stri
 	mu.Unlock()
 }
 
-func todosNodosConectados(lineNumber int, ficheroUsuarios string) string {
-	var pid string
+func todosNodosConectados(lineNumber int, ficheroUsuarios string) {
 	// Read endpoints from file
 	endpoints, err := readEndpoints(ficheroUsuarios)
 	if err != nil {
@@ -132,8 +131,6 @@ func todosNodosConectados(lineNumber int, ficheroUsuarios string) string {
 					break
 				}
 			}(ep)
-		} else {
-			pid = ep
 		}
 	}
 
@@ -146,8 +143,6 @@ func todosNodosConectados(lineNumber int, ficheroUsuarios string) string {
 
 	// Wait for the process routines to finish
 	wg.Wait()
-
-	return pid
 }
 
 func escribir(ra *ra.RASharedDB, ficheroEscritura string, textoEscritura string, gestor *g.Gestor) {
@@ -160,6 +155,7 @@ func escribir(ra *ra.RASharedDB, ficheroEscritura string, textoEscritura string,
 }
 
 func main() {
+	/*go run main.go 1 ../../ms/users.txt ../ficheroTexto.txt heEscritoEstoooYEY*/
 
 	lineNumber, err := strconv.Atoi(os.Args[1])
 	if err != nil || lineNumber < 1 {
@@ -172,10 +168,10 @@ func main() {
 	ficheroEscritura := os.Args[3]
 	textoEscritura := os.Args[4]
 
-	pid, _ := strconv.Atoi(todosNodosConectados(lineNumber, ficheroUsuarios))
+	todosNodosConectados(lineNumber, ficheroUsuarios)
 	gestor := g.New()
 
-	ra := ra.New(pid, ficheroUsuarios, procesoEscritor, gestor)
+	ra := ra.New(lineNumber, ficheroUsuarios, procesoEscritor, gestor)
 
 	go escribir(ra, ficheroEscritura, textoEscritura, &gestor)
 }

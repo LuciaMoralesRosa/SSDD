@@ -102,11 +102,14 @@ func New(whoIam int, usersFile string, messageTypes []Message) (ms MessageSystem
 	ms.done = make(chan bool)
 	// Registra el tipo de mensajes (Request, Reply y Escribir)
 	Register(messageTypes)
+	fmt.Println("Estoy ANTES de la goroutine de ms")
 
 	go func() {
 		// Creacion del Listener TCP que vincula el proceso actual a su IP:Puerto
 		// Escucha conexiones entrantes desde otros procesos del sistema
-		listener, err := net.Listen("tcp", ms.peers[ms.me-1])
+		fmt.Println("Estoy en la goroutine de ms")
+		fmt.Printf("Valor de ms.me: %d", ms.me)
+		listener, err := net.Listen("tcp", ms.peers[ms.me-1]) //antes: ms.me-1
 		checkError(err)
 		fmt.Println("Process listening at " + ms.peers[ms.me-1])
 		defer close(ms.mbox)
