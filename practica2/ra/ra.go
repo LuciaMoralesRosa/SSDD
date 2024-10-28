@@ -11,6 +11,7 @@ package ra
 
 import (
 	"bufio"
+	"fmt"
 	"os"
 	g "practica2/gestor"
 	"practica2/ms"
@@ -69,6 +70,7 @@ var matrizExclusion = [2][2]bool{
 
 // Inicializa una nueva instancia de RASharedBD
 func New(me int, usersFile string, esEscritor bool, g g.Gestor) *RASharedDB {
+	fmt.Println("Depuracion ra.New: Entrando a ra")
 	// Definicion de los tipos de mensajes que soporta el sistema
 	messageTypes := []ms.Message{Request{}, Reply{}, Escribir{}} // Tipos de mensajes
 	// Inicializacion del logger
@@ -81,26 +83,32 @@ func New(me int, usersFile string, esEscritor bool, g g.Gestor) *RASharedDB {
 	ra := RASharedDB{nodes, 0, 0, 0, false, make([]bool, nodes), &msgs, make(chan bool),
 		make(chan bool), esEscritor, logger, &g, sync.Mutex{}}
 
+	fmt.Println("Depuracion ra.New: se ha guardado la estructura y se va a lanzar la goroutine ra.recibirMensaje")
 	// goroutina de recepcion de mensajes
-	go ra.recibirMensaje()
+	//go ra.recibirMensaje()
+	for {}
 	return &ra
 }
 
 // Gestiona los mensajes entrantes. Constantemente esta esperando mensajes entrantes.
 func (ra *RASharedDB) recibirMensaje() {
+	fmt.Println("Depuracion ra.recibirMensaje: Se ha lanzado correctamente")
 	for {
 		msg := ra.ms.Receive()
 		var entrada string
 		switch x := msg.(type) {
 		case Request:
+			fmt.Println("Depuracion ra.recibirMensaje: Se ha recibido una request")
 			ra.logger.UnpackReceive("Recibir respuesta", x.Clock, &entrada,
 				govec.GetDefaultLogOptions())
 			ra.peticionRecibida(x)
 		case Reply:
+			fmt.Println("Depuracion ra.recibirMensaje: Se ha recibido una reply")
 			ra.logger.UnpackReceive("Recibir respuesta", x.Clock, &entrada,
 				govec.GetDefaultLogOptions())
 			ra.respuestaRecibida()
 		case Escribir:
+			fmt.Println("Depuracion ra.recibirMensaje: Se ha recibido una escribir")
 			ra.logger.UnpackReceive("Recibir escritura: "+x.Texto, x.Clock, &entrada,
 				govec.GetDefaultLogOptions())
 			ra.escribir(x.Fichero, x.Texto)
@@ -109,6 +117,7 @@ func (ra *RASharedDB) recibirMensaje() {
 }
 
 func (ra *RASharedDB) escribir(fichero string, texto string) {
+	fmt.Println("Depuracion ra.escribir: se va a llamar al gestor para escribirFichero")
 	ra.g.EscribirFichero(fichero, texto)
 }
 
@@ -117,6 +126,7 @@ func (ra *RASharedDB) respuestaRecibida() {
 }
 
 func (ra *RASharedDB) peticionRecibida(mensaje Request) {
+	fmt.Println("Depuracion ra.peticionRecibida: Se ha recibido una peticion")
 	var posponerPeticion bool
 	ra.Mutex.Lock() // Vamos a bloquear
 	ra.HigSeqNum = max(ra.HigSeqNum, mensaje.NumeroSecuencia)
@@ -126,17 +136,23 @@ func (ra *RASharedDB) peticionRecibida(mensaje Request) {
 	//	2 - Los numero de secuencia son iguales pero mi pid es menor
 	posponerPeticion = ra.ReqCS && (ra.OurSeqNum < mensaje.NumeroSecuencia ||
 		(ra.OurSeqNum == mensaje.NumeroSecuencia && ra.ms.Me() < mensaje.Pid))
-
+	if posponerPeticion {
+		fmt.Println("Depuracion ra.peticionRecibida: se ha decidido posponer peticion")
+	} else {
+		fmt.Println("Depuracion ra.peticionRecibida: No se pospone la peticion")
+	}
 	ra.Mutex.Unlock()
 
 	// Si se pospone la peticion y soy un proceso escritor o la peticion es de escritura
 	if posponerPeticion && (matrizExclusion[boolToInt(ra.procesoEscritor)][boolToInt(mensaje.PeticionEscritura)]) {
+		fmt.Println("Depuracion ra.peticionRecibida: Estoy en el if de peticion pospuesta o proceso escritor o escritura")
 		ra.logger.LogLocalEvent("Posponer", govec.GetDefaultLogOptions())
 		ra.Mutex.Lock()
 		// Indicamos que se ha pospuesto un mensaje del proceso pid
 		ra.RepDefd[mensaje.Pid-1] = true
 		ra.Mutex.Unlock()
 	} else {
+		fmt.Println("Depuracion ra.peticionRecibida: Estoy en el else asi que no se ha pospuesto ni soy escritor ni es de escritura")
 		// Si no se pospone o es un proceso de lectura y una peticion de lectura
 		datosEnvio := ra.logger.PrepareSend("Enviar respuesta", "Respuesta", govec.GetDefaultLogOptions())
 		ra.ms.Send(mensaje.Pid, Reply{datosEnvio})
@@ -144,6 +160,7 @@ func (ra *RASharedDB) peticionRecibida(mensaje Request) {
 }
 
 func (ra *RASharedDB) EscribirTexto(fichero string, texto string) {
+	fmt.Println("Depuracion ra.EscribirTexto: Estoy en escribir texto y voy a mandar un mensaje a todos los otros procesos para que escriban mi texto: " + texto)
 	ra.logger.LogLocalEvent("Indicar escritura", govec.GetDefaultLogOptions())
 	for i := 1; i <= ra.nodos; i++ {
 		if i != ra.ms.Me() {
@@ -160,6 +177,7 @@ func (ra *RASharedDB) EscribirTexto(fichero string, texto string) {
 //
 // Proceso que isgue in proceso cuando quiere acceder a la seccion critica
 func (ra *RASharedDB) PreProtocol() {
+	fmt.Println("Depuracion ra.Preprotocol: Estoy al principio del preprotocolo")
 	ra.Mutex.Lock()
 	ra.ReqCS = true
 	ra.OurSeqNum = ra.HigSeqNum + 1
@@ -169,6 +187,7 @@ func (ra *RASharedDB) PreProtocol() {
 	// Enviar peticion a todos menos a mi mismo
 	for i := 1; i <= ra.nodos; i++ {
 		if i != ra.ms.Me() {
+			fmt.Println("Depuracion ra.PreProtocol: Estoy enviando peticion a " + strconv.Itoa(i))
 			datosEnvio := ra.logger.PrepareSend("Enviar peticion", "Peticion",
 				govec.GetDefaultLogOptions())
 			ra.ms.Send(i, Request{datosEnvio, ra.ms.Me(), ra.procesoEscritor,
@@ -176,6 +195,7 @@ func (ra *RASharedDB) PreProtocol() {
 		}
 	}
 
+	fmt.Println("Depuracion ra.PreProtocol: descendiendo outRepCnt a cero y vaciando canal")
 	for ra.OutRepCnt > 0 {
 		<-ra.chrep
 		ra.OutRepCnt = ra.OutRepCnt - 1
@@ -190,10 +210,12 @@ func (ra *RASharedDB) PreProtocol() {
 //
 // El proceso libera la seccion critica y notifica a todos los procesos
 func (ra *RASharedDB) PostProtocol() {
+	fmt.Println("Depuracion ra.postProtocol: Estoy en el postprotocolo")
 	ra.Mutex.Lock()
 	ra.ReqCS = false
 	for i := 1; i <= ra.nodos; i++ {
 		if ra.RepDefd[i-1] {
+			fmt.Println("Depuracion ra.liberandome de la seccion critica con " + strconv.Itoa(i))
 			ra.RepDefd[i-1] = false
 			datosEnvio := ra.logger.PrepareSend("Enviar respuesta", "Respuesta",
 				govec.GetDefaultLogOptions())
@@ -204,6 +226,7 @@ func (ra *RASharedDB) PostProtocol() {
 }
 
 func (ra *RASharedDB) Stop() {
+	fmt.Println("Depuracion ra.Stop: enviando al canal un true para terminar")
 	ra.ms.Stop()
 	ra.done <- true
 }

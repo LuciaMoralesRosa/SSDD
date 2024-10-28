@@ -16,8 +16,6 @@ import (
 	"net"
 	"os"
 	"strconv"
-	"sync"
-	"time"
 )
 
 type Message interface{}
@@ -39,133 +37,6 @@ func checkError(err error) {
 		fmt.Fprintf(os.Stderr, "Fatal error: %s", err.Error())
 		os.Exit(1)
 	}
-}
-
-//------------------------CODIGO BARRERA -------------------------------------//
-
-func readEndpoints(filename string) ([]string, error) {
-	file, err := os.Open(filename)
-	if err != nil {
-		return nil, err
-	}
-	defer file.Close()
-
-	var endpoints []string
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		line := scanner.Text()
-		if line != "" {
-			endpoints = append(endpoints, line)
-		}
-	}
-	if err := scanner.Err(); err != nil {
-		return nil, err
-	}
-	return endpoints, nil
-}
-
-func handleConnection(conn net.Conn, barrierChan chan<- bool, received *map[string]bool, mu *sync.Mutex, n int) {
-	defer conn.Close()
-	buf := make([]byte, 1024)
-	_, err := conn.Read(buf)
-	if err != nil {
-		fmt.Println("Error reading from connection:", err)
-		return
-	}
-	msg := string(buf)
-	mu.Lock()
-	(*received)[msg] = true
-	fmt.Println("Received ", len(*received), " elements")
-	if len(*received) == n-1 {
-		barrierChan <- true
-	}
-	mu.Unlock()
-}
-
-func todosNodosConectados(me int, peers string, ficheroUsuarios string) net.Listener {
-	fmt.Println("Depurando ms.TodosNodosConectados: Estoy en la funcion")
-	// Read endpoints from file
-	endpoints, err := readEndpoints(ficheroUsuarios)
-	if err != nil {
-		fmt.Println("Error reading endpoints:", err)
-		os.Exit(1)
-	}
-
-	n := len(endpoints)
-
-	// Get the endpoint for this process
-	listener, err := net.Listen("tcp", peers)
-	if err != nil {
-		fmt.Println("Error creating listener:", err)
-		os.Exit(1)
-	}
-	fmt.Println("Depurando ms.TodosNodosConectados: Se ha creado el listener del proceso " + peers)
-
-	// Esperar a que todos los procesos se inicialicen
-	var mu sync.Mutex
-	barrierChan := make(chan bool)
-	receivedMap := make(map[string]bool)
-	quitChannel := make(chan bool)
-	var wg sync.WaitGroup // Waiting Group for the process' routines
-
-	// Start accepting connections
-	go func() {
-		fmt.Println("Depurando ms.TodosNodosConectados: Se ha lanzado la goroutine para aceptar peticiones")
-		stop := false
-		for !stop {
-			select {
-			case <-quitChannel:
-				fmt.Println("Stopping the listener...")
-				stop = true
-			default:
-				conn, err := listener.Accept()
-				if err != nil {
-					fmt.Println("Error accepting connection:", err)
-					continue
-				}
-				fmt.Println("Depurando ms.TodosNodosConectados: Voy a lanzar la goroutine de handleConnection")
-				go handleConnection(conn, barrierChan, &receivedMap, &mu, n)
-			}
-		}
-	}()
-
-	// Notify other processes
-	for i, ep := range endpoints {
-		fmt.Println("Depurando ms.TodosNodosConectados: Estoy notificando a los procesos que estoy en la barrera")
-		if i+1 != me {
-			wg.Add(1) // Add one routine to the waiting list
-			go func(ep string) {
-				defer wg.Done() // Substract one routine from the waiting list
-				for {
-					conn, err := net.Dial("tcp", ep)
-					if err != nil {
-						fmt.Println("Error connecting to", ep, ":", err)
-						time.Sleep(1 * time.Second)
-						continue
-					}
-					_, err = conn.Write([]byte(strconv.Itoa(me)))
-					if err != nil {
-						fmt.Println("Error sending message:", err)
-						conn.Close()
-						continue
-					}
-					conn.Close()
-					break
-				}
-			}(ep)
-		}
-	}
-
-	// Wait for all processes to reach the barrier
-	fmt.Println("Waiting for all the processes to reach the barrier")
-	<-barrierChan
-
-	// Stop the Listening loop
-	close(quitChannel)
-
-	// Wait for the process routines to finish
-	wg.Wait()
-	return listener
 }
 
 func (ms *MessageSystem) Me() int {
@@ -235,14 +106,15 @@ func New(whoIam int, usersFile string, messageTypes []Message) (ms MessageSystem
 	ms.done = make(chan bool)
 	// Registra el tipo de mensajes (Request, Reply y Escribir)
 	Register(messageTypes)
+	fmt.Println("Estoy ANTES de la goroutine de ms")
 
 	go func() {
 		// Creacion del Listener TCP que vincula el proceso actual a su IP:Puerto
 		// Escucha conexiones entrantes desde otros procesos del sistema
 		fmt.Println("Depurando ms.New: Estoy en la goroutine de ms")
-		//listener, err := net.Listen("tcp", ms.peers[ms.me-1])
-		listener := todosNodosConectados(ms.me, ms.peers[ms.me-1], usersFile)
-		//checkError(err)
+		fmt.Printf("Depurando ms.New: Valor de ms.me: %d", ms.me)
+		listener, err := net.Listen("tcp", ms.peers[ms.me-1])
+		checkError(err)
 		fmt.Println("Depuracion ms.New despues de hacer el net.Listen")
 		fmt.Println("Process listening at " + ms.peers[ms.me-1])
 		defer close(ms.mbox)
