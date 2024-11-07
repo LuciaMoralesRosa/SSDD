@@ -52,6 +52,12 @@ const (
 	kLogOutputDir = "./logs_raft/"
 )
 
+const (
+	Lider = "lider"
+	Candidato = "candidato"
+	Seguidor = "seguidor"
+)
+
 type TipoOperacion struct {
 	Operacion string  // La operaciones posibles son "leer" y "escribir"
 	Clave string
@@ -75,16 +81,28 @@ type NodoRaft struct {
 	// Host:Port de todos los nodos (réplicas) Raft, en mismo orden
 	Nodos []rpctimeout.HostPort
 	Yo    int           // indice de este nodos en campo array "nodos"
-	IdLider int
+	IdLider int			// Indice del lider
+	
 	// Utilización opcional de este logger para depuración
 	// Cada nodo Raft tiene su propio registro de trazas (logs)
 	Logger *log.Logger
 
 	// Vuestros datos aqui.
-	
-	// mirar figura 2 para descripción del estado que debe mantenre un nodo Raft
-}
+	EstadoNodo		string	// Puede ser Lider, Candidato o Seguidor
+	Latidos			chan bool // El nodo recibe el latido
+	VotosParaLider	int		// Numero de votos que tiene el nodo para ser lider
 
+	CurrentTerm		int // Ultimo termino
+	VotedFor		int	// Candidato por el que ha votado
+	Logs			[]AplicaOperacion
+
+	CommitIndex		int	// Indice de la entry comprometida mas alta
+	LastApplied		int // Indice de la entrada de registro más alta aplicada a
+						// la máquina de estados
+
+	NextIndex		[]int
+	MatchIndex		[]int
+}
 
 
 // Creacion de un nuevo nodo de eleccion
@@ -136,8 +154,23 @@ func NuevoNodo(nodos []rpctimeout.HostPort, yo int,
 	}
 
 	// Añadir codigo de inicialización
-	
+	nr.EstadoNodo = Seguidor	
+	nr.Latidos = make(chan bool) 
+	nr.NuevoLider = make(chan bool)
+	nr.EsLider = make(chan bool)
+	nr.VotosParaLider = 0
+	nr.CurrentTerm = 0
+	nr.VotedFor = -1
+	nr.Logs	= []AplicaOperacion{}
 
+	nr.CommitIndex	= 0
+	nr.LastApplied	= 0
+	nr.NextIndex = make([]int, len(nodos))
+	nr.MatchIndex = make([]int, len(nodos))
+
+	// Lanzamiento de la maquina de estados
+	go maquinaEstados(nr)
+	
 	return nr
 }
 
@@ -162,11 +195,15 @@ func (nr *NodoRaft) obtenerEstado() (int, int, bool, int) {
 	var yo int = nr.Yo
 	var mandato int
 	var esLider bool
-	var idLider int =nr.IdLider
+	var idLider int = nr.IdLider
 	
 
 	// Vuestro codigo aqui
-	
+	nr.Mux.Lock()
+	yo = nr.Yo
+	mandato = nr.CurrentTerm
+	nr.Mux.Unlock()
+	esLider = nr.Yo == idLider
 
 	return yo, mandato, esLider, idLider
 }
@@ -197,6 +234,23 @@ func (nr *NodoRaft) someterOperacion(operacion TipoOperacion) (int, int,
 	
 
 	// Vuestro codigo aqui
+	EsLider = nr.Yo == nr.IdLider
+
+	if EsLider {
+		indice = nr.CommitIndex
+		mandato = nr.CurrentTerm
+		argumentosAppendEntries := ArgAppendEntries{indice, mandato, operacion}
+		var appendEntriesResultado Results
+
+		confirmados := 0
+		for i := 0; i < len(nr.Nodos); i++{
+			if i != nr.Yo {
+				nr.Nodos[i].CallTimeout("AppendEntries", ArgAppendEntries)
+			}
+		}
+
+	}
+
 	
 
 	return indice, mandato, EsLider, idLider, valorADevolver
@@ -280,10 +334,17 @@ func (nr *NodoRaft) PedirVoto(peticion *ArgsPeticionVoto,
 
 type ArgAppendEntries struct {
 	// Vuestros datos aqui
+	Indice 		int
+	Mandato		int
+	Operacion 	TipoOperacion
 }
 
 type Results struct {
 	// Vuestros datos aqui
+	// La salida del AppendEntries es el termino actual y si 
+	TerminoActual	int	// Termino del lider que envio la solicitud
+	Exito 	bool	//true si la entrada fue replicada correctamente
+	//SiguienteIndice	int
 }
 
 
@@ -334,4 +395,68 @@ func (nr *NodoRaft) enviarPeticionVoto(nodo int, args *ArgsPeticionVoto,
 	// Completar....
 	
 	return true
+}
+
+
+
+
+
+// --------------------------- OTROS METODOS -----------------------------------
+func maquinaEstadosLider(nr *NodoRaft) {
+	nr.IdLider = nr.Yo
+	temporizador := time.NewTimer(50 * time.Millisecond)
+	enviarLatido(nr)
+	select {
+		case <- nr.NuevoLider:
+			nr.EstadoNodo = Seguidor
+		case <-temporizador.C:
+			// Se usa el canal del temporizador para saber si han pasado los 50ms
+			nr.EstadoNodo = Lider
+	}
+}
+
+func maquinaEstadosSeguidor(nr *NodoRaft){
+	select {
+		case<-time.After(generarTiempoAleatorio()):
+			nr.Lider = -1
+			nr.EstadoNodo = Candidato
+		case <- nr.Latido:
+			nr.EstadoNodo = Seguidor
+	}
+}
+
+func maquinaEstadosCandidato(nr *NodoRaft){
+	nr.CurrentTerm++ // Se inicia un nuevo termino
+	nr.VotosParaLider = 1 // Se propone como lider y se vota
+	nr.VotedFor = nr.Yo // Se vota a su mismo para lider
+
+	// Se establece el tiempo para la votacion
+	temporizador := time.NewTimer(generarTiempoAleatorio())
+
+	requestVotes(nr) // Peticion de los votos de los demas nodos
+
+	select {
+		case <- nr.Latidos:
+			nr.EstadoNodo = Seguidor // Si le llega un latido es que hay lider
+		case <- nr.NuevoLider:
+			nr.EstadoNodo = Seguidor
+		case <- temporizador.C:
+			nr.EstadoNodo = Candidato // Se establece como candidato y se 
+									  // repetira la votacion
+		case <- nr.esLider:
+			nr.EstadoNodo = Lider
+	}
+}
+
+func maquinaEstados(nr *NodoRaft) {
+	for {
+		switch nr.EstadoNodo {
+		case Lider:
+			maquinaEstadosLider(nr)
+		case Candidato:
+			maquinaEstadosCandidato(nr)
+		case Seguidor:
+			maquinaEstadosSeguidor(nr)
+		}
+	}
 }

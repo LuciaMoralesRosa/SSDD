@@ -1,3 +1,7 @@
+/*
+Funcion para analizar los errores obtenidos
+*/
+
 package check
 
 import (
