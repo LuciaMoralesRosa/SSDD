@@ -73,6 +73,11 @@ type AplicaOperacion struct {
 	Operacion TipoOperacion
 }
 
+type LogEntry struct {
+	Operacion TipoOperacion
+	Term int
+}
+
 // Tipo de dato Go que representa un solo nodo (réplica) de raft
 //
 type NodoRaft struct {
@@ -89,19 +94,24 @@ type NodoRaft struct {
 
 	// Vuestros datos aqui.
 	EstadoNodo		string	// Puede ser Lider, Candidato o Seguidor
-	Latidos			chan bool // El nodo recibe el latido
 	VotosParaLider	int		// Numero de votos que tiene el nodo para ser lider
-
+	
 	CurrentTerm		int // Ultimo termino
 	VotedFor		int	// Candidato por el que ha votado
-	Logs			[]AplicaOperacion
-
+	Logs			[]LogEntry
+	
 	CommitIndex		int	// Indice de la entry comprometida mas alta
 	LastApplied		int // Indice de la entrada de registro más alta aplicada a
-						// la máquina de estados
-
+	// la máquina de estados
+	
+	// Usamos array de enteros que funcionan igual que un mapa
+	// Es decir, la posicion del array equivaldria a la clave del map
 	NextIndex		[]int
 	MatchIndex		[]int
+
+	soySeguidor		chan bool
+	soyLider		chan bool
+	Latidos			chan bool // El nodo recibe el latido
 }
 
 
@@ -156,15 +166,15 @@ func NuevoNodo(nodos []rpctimeout.HostPort, yo int,
 	// Añadir codigo de inicialización
 	nr.EstadoNodo = Seguidor	
 	nr.Latidos = make(chan bool) 
-	nr.NuevoLider = make(chan bool)
-	nr.EsLider = make(chan bool)
+	nr.soyLider = make(chan bool)
+	nr.soySeguidor = make(chan bool)
 	nr.VotosParaLider = 0
 	nr.CurrentTerm = 0
 	nr.VotedFor = -1
-	nr.Logs	= []AplicaOperacion{}
+	nr.Logs	= []LogEntry{}
 
-	nr.CommitIndex	= 0
-	nr.LastApplied	= 0
+	nr.CommitIndex	= -1
+	nr.LastApplied	= -1
 	nr.NextIndex = make([]int, len(nodos))
 	nr.MatchIndex = make([]int, len(nodos))
 
@@ -197,12 +207,8 @@ func (nr *NodoRaft) obtenerEstado() (int, int, bool, int) {
 	var esLider bool
 	var idLider int = nr.IdLider
 	
-
 	// Vuestro codigo aqui
-	nr.Mux.Lock()
-	yo = nr.Yo
 	mandato = nr.CurrentTerm
-	nr.Mux.Unlock()
 	esLider = nr.Yo == idLider
 
 	return yo, mandato, esLider, idLider
@@ -231,28 +237,54 @@ func (nr *NodoRaft) someterOperacion(operacion TipoOperacion) (int, int,
 	EsLider := false
 	idLider := -1
 	valorADevolver := ""
-	
 
 	// Vuestro codigo aqui
+	valorADevolver = "Error"
 	EsLider = nr.Yo == nr.IdLider
 
 	if EsLider {
 		indice = nr.CommitIndex
 		mandato = nr.CurrentTerm
-		argumentosAppendEntries := ArgAppendEntries{indice, mandato, operacion}
-		var appendEntriesResultado Results
 
-		confirmados := 0
-		for i := 0; i < len(nr.Nodos); i++{
+		nr.Log = append(nr.Log, LogEntry{Operacion: operacion,
+										 Term: nr.CurrentTerm})
+
+		var resultadoAE Results
+		confirmados := 1
+
+		longitudNodos := len(nr.Nodos)
+		for i:=0; i < longitudNodos; i++ {
+			// Si soy yo, no hago nada
 			if i != nr.Yo {
-				nr.Nodos[i].CallTimeout("AppendEntries", ArgAppendEntries)
+				argumentos := ArgAppendEntries{Term: mandato,
+											   IdLider: nr.Yo,
+											   LogIndexPrev: indice,
+											   LogTermPrev: nr.CurrentTerm,
+											   Entradas: []LogEntry{{operacion,
+															nr.CurrentTerm}},
+											   CommitLider: -1,
+											}
+				err := nr.Nodos[i].CallTimeout("NodoRaft.AE", &argumentos,
+										&resultadoAE, 50*time.Millisecond)
+				check.CheckError(err)
+				if resultadoAE.Exito {
+					confirmados++
+					nr.NextIndex[i] += len(args.Entries)
+					nr.MatchIndex[i] = nr.NextIndex[i] - 1
+				} else {
+					if mandato < resultadoAE.Term {
+						nr.CurrentTerm = resultadoAE.Term
+						soySeguidor <- true
+					}
+				}
 			}
 		}
-
+		
+		if confirmados > longitudNodos/2 {
+			nr.CommitIndex++
+			valorADevolver = "Comprometido"
+		}
 	}
-
-	
-
 	return indice, mandato, EsLider, idLider, valorADevolver
 }
 
@@ -307,7 +339,10 @@ func (nr *NodoRaft) SometerOperacionRaft(operacion TipoOperacion,
 // Nombres de campos deben comenzar con letra mayuscula !
 //
 type ArgsPeticionVoto struct {
-	// Vuestros datos aqui
+	Term	int
+	IdCandidato	int
+	LastLogIndexCandidato	int
+	LastLogTermCandidato	int
 }
 
 // Structura de ejemplo de respuesta de RPC PedirVoto,
@@ -318,7 +353,8 @@ type ArgsPeticionVoto struct {
 //
 //
 type RespuestaPeticionVoto struct {
-	// Vuestros datos aqui
+	Term	int
+	VotoEmitido	bool // Indica si ha concedido su voto al candidato
 }
 
 
@@ -327,22 +363,43 @@ type RespuestaPeticionVoto struct {
 func (nr *NodoRaft) PedirVoto(peticion *ArgsPeticionVoto,
 										reply *RespuestaPeticionVoto) error {
 	// Vuestro codigo aqui
+	lastLogIndex, lastLogTerm := obtenerLastLog(nr)
+	if peticion.Term > nr.CurrentTerm {
+		nr.soySeguidor <- true
+		// Actualizar el termino
+		nr.CurrentTerm = peticion.Term
+		nr.VotedFor = -1
+	}
 
+	if peticion.Term == nr.CurrentTerm &&
+	   (nr.VotedFor == -1 || nr.VotedFor == peticion.IdCandidato) &&
+	   (peticion.LastLogTermCandidato > lastLogTerm ||
+	   (peticion.LastLogTermCandidato == lastLogTerm &&
+	   (peticion.LastLogIndexCandidato >= lastLogIndex))) {
+		// Voto por el candidato
+		reply.VotoEmitido = true
+		nr.VotedFor = peticion.IdCandidato
+	} else {
+		reply.VotoEmitido = false
+	}
+	reply.Term = nr.CurrentTerm
 	return nil	
 }
 
-
 type ArgAppendEntries struct {
 	// Vuestros datos aqui
-	Indice 		int
-	Mandato		int
-	Operacion 	TipoOperacion
+	Term	int
+	IdLider	int
+	LogIndexPrev	int
+	LogTermPrev		int
+	Entradas		[]LogEntry
+	CommitLider		int
 }
 
 type Results struct {
 	// Vuestros datos aqui
 	// La salida del AppendEntries es el termino actual y si 
-	TerminoActual	int	// Termino del lider que envio la solicitud
+	Term	int	// Termino del lider que envio la solicitud
 	Exito 	bool	//true si la entrada fue replicada correctamente
 	//SiguienteIndice	int
 }
@@ -352,7 +409,57 @@ type Results struct {
 func (nr *NodoRaft) AppendEntries(args *ArgAppendEntries,
 													  results *Results) error {
 	// Completar....
+	if nr.CurrentTerm < args.Term {
+		// Mi mandato es menor al de la peticion de lider -> soy seguidor y 
+		// actualizo el termino
+		nr.soySeguidor <- true
+		nr.CurrentTerm = args.Term
+	}
 
+	// Inicializacion de exito a falso
+	results.Exito = false
+
+	if nr.CurrentTerm == args.Term {
+		longitudLog := len(nr.Log)
+		// Sigo siendo seguidor 
+		nr.soySeguidor <- true
+		if args.LogIndexPrev == -1 || (args.LogIndexPrev < longitudLog &&
+		   args.LogTermPRev == nr.Log[args.LogIndexPrev].Term) {
+			args.Exito = true
+			indiceInsercion := args.LogIndexPrev + 1
+			indiceEntrada := 0
+
+			for{
+				if (indiceInsercion >= longitudLog ||
+				   indiceEntrada >= len(args.Entradas)) ||
+				   (nr.Log[indiceInsercion].Term !=
+				   args.Entradas[indiceEntrada].Term) {
+					break
+				}
+				indiceInsercion++
+				indiceEntrada++
+			}
+			if indiceEntrada < len(args.Entradas) {
+				// Reemplazar el Log desde indiceInterseccion las entradas de
+				// args.Entradas desde indiceEntrada
+				nr.Log = append(nr.Log[:indiceInsercion],
+								args.Entradas[indiceEntrada:]...)
+				
+			}
+
+			if args.CommitLider > nr.CommitIndex {
+				// Si el commit del lider es mayor que el mio -> 
+				if args.CommitLider < (len(nr.Log)-1) {
+					nr.CommitIndex = args.CommitLider
+				} else {
+					nr.CommitIndex = len(nr.Log)-1
+				}
+				
+			}
+		}
+	}
+
+	results.Term = nr.CurrentTerm
 	return nil
 }
 
@@ -390,14 +497,37 @@ func (nr *NodoRaft) AppendEntries(args *ArgAppendEntries,
 //
 func (nr *NodoRaft) enviarPeticionVoto(nodo int, args *ArgsPeticionVoto,
 											reply *RespuestaPeticionVoto) bool {
-	
-
 	// Completar....
-	
+	nr.Mux.Lock()
+	defer nr.Mux.Unlock()
+
+	err := nr.Nodos[nodo].CallTimeout("NodoRaft.PV", args, reply,
+									  50*time.Millisecond)
+	check.CheckError(err)
+	if reply.Term > nr.CurrentTerm {
+		// El que me responde tiene mayor Term -> actualizo y paso a seguidor
+		nr.CurrentTerm = reply.Term
+		soySeguidor <- true
+		nr.VotedFor = -1 // Dejo de votar
+	} else if reply.VotoEmitido {
+		nr.VotosParaLider++
+		
+		// Comprobar mayoria de votos hacia mi
+		longitudNodos := len(nr.Nodos)
+		longitudLog := len(nr.Log)
+		if VotosParaLider > longitudNodos/2 {
+			for i := 0; i < longitudNodos; i++ {
+				if i != nr.Yo {
+					nr.NextIndex[i] = longitudLog
+					nr.MatchIndex[i] -1
+				}
+			}
+			// Si tengo mayoria paso a ser lider
+			nr.SoyLider <- true
+		}
+	}	
 	return true
 }
-
-
 
 
 
@@ -405,9 +535,9 @@ func (nr *NodoRaft) enviarPeticionVoto(nodo int, args *ArgsPeticionVoto,
 func maquinaEstadosLider(nr *NodoRaft) {
 	nr.IdLider = nr.Yo
 	temporizador := time.NewTimer(50 * time.Millisecond)
-	enviarLatido(nr)
+	go enviarLatido(nr)
 	select {
-		case <- nr.NuevoLider:
+		case <- nr.SoySeguidor:
 			nr.EstadoNodo = Seguidor
 		case <-temporizador.C:
 			// Se usa el canal del temporizador para saber si han pasado los 50ms
@@ -420,7 +550,7 @@ func maquinaEstadosSeguidor(nr *NodoRaft){
 		case<-time.After(generarTiempoAleatorio()):
 			nr.Lider = -1
 			nr.EstadoNodo = Candidato
-		case <- nr.Latido:
+		case <- nr.soySeguidor:
 			nr.EstadoNodo = Seguidor
 	}
 }
@@ -429,22 +559,18 @@ func maquinaEstadosCandidato(nr *NodoRaft){
 	nr.CurrentTerm++ // Se inicia un nuevo termino
 	nr.VotosParaLider = 1 // Se propone como lider y se vota
 	nr.VotedFor = nr.Yo // Se vota a su mismo para lider
-
 	// Se establece el tiempo para la votacion
 	temporizador := time.NewTimer(generarTiempoAleatorio())
-
-	requestVotes(nr) // Peticion de los votos de los demas nodos
+	nuevaEleccion(nr)
 
 	select {
-		case <- nr.Latidos:
+		case <- nr.SoySeguidor:
 			nr.EstadoNodo = Seguidor // Si le llega un latido es que hay lider
-		case <- nr.NuevoLider:
-			nr.EstadoNodo = Seguidor
+		case <- nr.SoyLider:
+			nr.EstadoNodo = Lider
 		case <- temporizador.C:
 			nr.EstadoNodo = Candidato // Se establece como candidato y se 
 									  // repetira la votacion
-		case <- nr.esLider:
-			nr.EstadoNodo = Lider
 	}
 }
 
@@ -459,4 +585,69 @@ func maquinaEstados(nr *NodoRaft) {
 			maquinaEstadosSeguidor(nr)
 		}
 	}
+}
+
+func enviarLatido(nr *NodoRaft){
+	var resultadoAE Results
+	for nodo := 0; nodo < len(nr.Nodos); nodo++ {
+		if nodo != nr.Yo {
+			nextIndex := nr.NextIndex[i]
+			logIndexPrev := nextIndex -1
+			if logIndexPrev >= 0 {
+				logTermPrev := nr.Log[logIndexPrev].Term
+			} else {
+				logTermPrev := -1
+			}
+			Entradas := nr.Log[nextIndex:]
+			argumentos := ArgAppendEntries{Term: nr.CurrentTerm,
+										   IdLider: nr.Yo,
+										   LogIndexPrev: logIndexPrev,
+										   LogTermPrev: logTermPrev,
+										   Entradas: entradas,
+										   CommitLider: nr.CommitIndex,
+			}
+			err := nr.Nodos[nodo].CallTimeout("NodoRaft.AE", &args,
+											  &resultadoAE, 50*Time.Millisecond)
+			check.CheckError(err)
+			if resultadoAE > nr.CurrentTerm {
+				nr.CurrentTerm = resultadoAE.Term
+				nr.VotedFor = -1
+				nr.SoySeguidor <- true
+				return
+			}
+			if resultadoAE.Exito {
+				nr.Mux.Lock()
+				nr.NextIndex[nodo] = nextIndex + len(argumentos.Entradas)
+				nr.MatchIndex[nodo] = nr.NextIndex[nodo] - 1
+				nr.Mux.Unlock()
+			}
+		}
+	}
+}
+
+func nuevaEleccion(nr *NodoRaft) {
+	lastLogIndex, lastLogTerm := nr.obtenerLastLog()
+	argumentos := ArgsPeticionVoto{nr.CurrentTerm, nr.Yo, lastLogIndex,
+								   lastLogTerm}
+	var resultadoPV RespuestaPeticionVoto
+	for nodo := 0; nodo < len(nr.Nodos); nodo++{
+		if nodo != nr.Yo {
+			go nr.enviarPeticionVoto(nodo, &argumentos, &resultadoPV)
+		}
+	}
+}
+
+func generarTiempoAleatorio() time.Duration {
+	return time.Duration(rand.Intn(300)+150 * time.Millisecond)
+}
+
+func obtenerLastLog(nr *NodoRaft) (int, int) {
+	nr.Mux.Lock()
+	longitudLog := len(nr.Log)
+	if longitudLog > 0 {
+		return (longitudLog - 1, nr.Log[longitudLog - 1].Term)
+	} else {
+		return -1, -1
+	}
+	nr.Mux.Unlock()
 }
