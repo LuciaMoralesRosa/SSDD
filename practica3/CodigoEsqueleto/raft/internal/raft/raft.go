@@ -264,8 +264,9 @@ func (nr *NodoRaft) someterOperacion(operacion TipoOperacion) (int, int,
 															nr.CurrentTerm}},
 											   CommitLider: -1,
 											}
-				err := nr.Nodos[i].CallTimeout("NodoRaft.AE", &argumentos,
-										&resultadoAE, 50*time.Millisecond)
+				err := nr.Nodos[i].CallTimeout("NodoRaft.AppendEntries",
+											   &argumentos, &resultadoAE,
+											   50*time.Millisecond)
 				check.CheckError(err)
 				if resultadoAE.Exito {
 					confirmados++
@@ -501,7 +502,7 @@ func (nr *NodoRaft) enviarPeticionVoto(nodo int, args *ArgsPeticionVoto,
 	nr.Mux.Lock()
 	defer nr.Mux.Unlock()
 
-	err := nr.Nodos[nodo].CallTimeout("NodoRaft.PV", args, reply,
+	err := nr.Nodos[nodo].CallTimeout("NodoRaft.PedirVoto", args, reply,
 									  50*time.Millisecond)
 	check.CheckError(err)
 	if reply.Term > nr.CurrentTerm {
@@ -606,8 +607,9 @@ func enviarLatido(nr *NodoRaft){
 										   Entradas: entradas,
 										   CommitLider: nr.CommitIndex,
 			}
-			err := nr.Nodos[nodo].CallTimeout("NodoRaft.AE", &args,
-											  &resultadoAE, 50*Time.Millisecond)
+			err := nr.Nodos[nodo].CallTimeout("NodoRaft.AppendEntries",
+											  &argumentos, &resultadoAE,
+											  50*Time.Millisecond)
 			check.CheckError(err)
 			if resultadoAE > nr.CurrentTerm {
 				nr.CurrentTerm = resultadoAE.Term

@@ -17,15 +17,25 @@ import (
 )
 
 const (
-	//hosts
-	MAQUINA1      = "127.0.0.1"
-	MAQUINA2      = "127.0.0.1"
-	MAQUINA3      = "127.0.0.1"
+	//hosts por defecto
+	//MAQUINA1      = "127.0.0.1"
+	//MAQUINA2      = "127.0.0.1"
+	//MAQUINA3      = "127.0.0.1"
 
-	//puertos
-	PUERTOREPLICA1 = "29001"
-	PUERTOREPLICA2 = "29002"
-	PUERTOREPLICA3 = "29003"
+	//puertos por defecto
+	//PUERTOREPLICA1 = "29001"
+	//PUERTOREPLICA2 = "29002"
+	//PUERTOREPLICA3 = "29003"
+
+	// Mis maquinas y puertos
+	MAQUINA1      = "192.168.3.2"
+	MAQUINA2      = "192.168.3.3"
+	MAQUINA3      = "192.168.3.4"
+	PUERTOREPLICA1 = "31112"
+	PUERTOREPLICA2 = "31113"
+	PUERTOREPLICA3 = "31114"
+
+	NumeroDeNodos = 3
 
 	//nodos replicas
 	REPLICA1 = MAQUINA1 + ":" + PUERTOREPLICA1
@@ -45,7 +55,9 @@ const (
 )
 
 // PATH de los ejecutables de modulo golang de servicio Raft
-var PATH string = filepath.Join(os.Getenv("HOME"), "tmp", "p5", "raft")
+//var PATH string = filepath.Join(os.Getenv("HOME"), "tmp", "p5", "raft")
+var PATH string = filepath.Join(os.Getenv("HOME"), "raft")
+
 
 	// go run cmd/srvraft/main.go 0 127.0.0.1:29001 127.0.0.1:29002 127.0.0.1:29003
 var EXECREPLICACMD string = "cd " + PATH + "; go run " + EXECREPLICA
@@ -169,6 +181,7 @@ func (cfg *configDespliegue) soloArranqueYparadaTest1(t *testing.T) {
 
 	// Poner en marcha replicas en remoto con un tiempo de espera incluido
 	cfg.startDistributedProcesses()
+	time.Sleep(2*time.Second)
 
 	// Comprobar estado replica 0
 	cfg.comprobarEstadoRemoto (0, 0, false, -1)
@@ -192,6 +205,7 @@ func (cfg *configDespliegue) elegirPrimerLiderTest2(t *testing.T) {
 	fmt.Println(t.Name(), ".....................")
 
 	cfg.startDistributedProcesses()
+	time.Sleep(2*time.Second)
 
 	// Se ha elegido lider ?
 	fmt.Printf("Probando lider en curso\n")
@@ -211,18 +225,17 @@ func (cfg *configDespliegue) falloAnteriorElegirNuevoLiderTest3(t *testing.T) {
 	fmt.Println(t.Name(), ".....................")
 
 	cfg.startDistributedProcesses()
+	time.Sleep(2*time.Second)
 
 	fmt.Printf("Lider inicial\n")
 	cfg.pruebaUnLider(3)
 
-
 	// Desconectar lider
-	// ???
-
+	cfg.desconectarLider()
+	
 	fmt.Printf("Comprobar nuevo lider\n")
 	cfg.pruebaUnLider(3)
 	
-
 	// Parar réplicas almacenamiento en remoto
 	cfg.stopDistributedProcesses()  //parametros
 
@@ -234,6 +247,28 @@ func (cfg *configDespliegue) tresOperacionesComprometidasEstable(t *testing.T) {
 	t.Skip("SKIPPED tresOperacionesComprometidasEstable")
 
 	// A completar ???
+	cfg.startDistributedProcesses()
+	time.Sleep(2*time.Second)
+
+	fmt.Prinf("Obtener lider\n")
+	idLider := cfg.obtenerLider()
+
+	tipoOperacion := raft.TipoOperacion{Operacion: "escribir",
+										Clave: "prueba",
+										Valor: "p"}
+	var respuesta raft.ResultadoRemoto
+
+	for i := 0; i < 3; i++{
+		time.Sleep(2*time.Second)
+		err := cfg.nodosRaft[idLider].CallTimeout("NodoRaft.SometerOperacionRaft",
+												  tipoOperacion, &respuesta, 
+												  1*time.Second)
+		check-CheckError(err, "Error en llamada a SometerOperacionRaft")
+	}
+
+	cfg.stopDistributedProcesses()
+
+	fmt.Println(".............", t.Name(), "Superado")
 }
 
 // Se consigue acuerdo a pesar de desconexiones de seguidor -- 3 NODOS RAFT
@@ -245,7 +280,6 @@ func(cfg *configDespliegue) AcuerdoApesarDeSeguidor(t *testing.T) {
 	// Comprometer una entrada
 
 	//  Obtener un lider y, a continuación desconectar una de los nodos Raft
-
 
 	// Comprobar varios acuerdos con una réplica desconectada
 
@@ -381,4 +415,21 @@ func (cfg *configDespliegue) comprobarEstadoRemoto(idNodoDeseado int,
 													idNodoDeseado, cfg.t.Name())
 	}
 
+}
+
+
+func (cfg *configDespliegue) obtenerLider() int {
+	_, _, _, idLider := cfg.obtenerEstadoRemoto(0)
+	return idLider
+}
+
+func (cfg *configDespliegue) desconectarLider() {
+	idLider := cfg.obtenerLider()
+	var respuesta raft.Vacio
+	cfg.conectados[idLider] = false
+	err := cfg.nodosRaft[idLider].CallTimeout("NodoRaft.ParaNodo", raft.Vacio{},
+											  &respuesta, 10*time.Millisecond)
+	check.CheckError(err, "Error en la llamada ParaNodo")
+
+	time.Sleep(1*time.Second)
 }
