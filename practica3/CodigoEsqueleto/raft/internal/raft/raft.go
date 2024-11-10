@@ -491,7 +491,7 @@ func (nr *NodoRaft) enviarPeticionVoto(nodo int, args *ArgsPeticionVoto,
 	defer nr.Mux.Unlock()
 
 	err := nr.Nodos[nodo].CallTimeout("NodoRaft.PedirVoto", args, reply,
-		50*time.Millisecond)
+		33*time.Millisecond)
 	check.CheckError(err, "Error en la llamada PedirVoto")
 	if reply.Term > nr.CurrentTerm {
 		// El que me responde tiene mayor Term -> actualizo y paso a seguidor

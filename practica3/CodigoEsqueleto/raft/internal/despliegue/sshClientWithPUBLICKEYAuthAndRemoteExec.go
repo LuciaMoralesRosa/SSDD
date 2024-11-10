@@ -12,6 +12,8 @@ package despliegue
 import (
 	"bufio"
 	"bytes"
+	"fmt"
+
 	//"fmt"
 	"io/ioutil"
 	"log"
@@ -57,6 +59,7 @@ func getHostKey(host string) ssh.PublicKey {
 }
 
 func executeCmd(cmd, hostname string, config *ssh.ClientConfig) string {
+	fmt.Println("Hostname" + hostname)
 	conn, err := ssh.Dial("tcp", hostname+":22", config)
 	if err != nil {
 		log.Fatalln("ERROR CONEXION SSH", err)
@@ -127,7 +130,7 @@ func ExecMutipleHosts(cmd string,
 
 	//Read private key file for user
 	pkey, err := ioutil.ReadFile(
-						  filepath.Join(os.Getenv("HOME"), ".ssh", privKeyFile))
+		filepath.Join(os.Getenv("HOME"), ".ssh", privKeyFile))
 
 	//fmt.Println("PrivKey: ", string(pkey))
 

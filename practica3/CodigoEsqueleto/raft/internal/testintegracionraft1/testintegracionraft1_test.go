@@ -44,7 +44,7 @@ const (
 	REPLICA3 = MAQUINA3 + ":" + PUERTOREPLICA3
 
 	// paquete main de ejecutables relativos a PATH previo
-	EXECREPLICA = "cmd/srvraft/main.go"
+	EXECREPLICA = "cmd/srvraft/main.go " + REPLICA1 + " " + REPLICA2 + " " + REPLICA3
 
 	// comandos completo a ejecutar en máquinas remota con ssh. Ejemplo :
 	// 				cd $HOME/raft; go run cmd/srvraft/main.go 127.0.0.1:29001
