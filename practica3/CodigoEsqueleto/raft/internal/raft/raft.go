@@ -267,7 +267,7 @@ func (nr *NodoRaft) someterOperacion(operacion TipoOperacion) (int, int,
 				err := nr.Nodos[i].CallTimeout("NodoRaft.AppendEntries",
 											   &argumentos, &resultadoAE,
 											   50*time.Millisecond)
-				check.CheckError(err)
+				check.CheckError(err, "Error en la llamada AppendEntries")
 				if resultadoAE.Exito {
 					confirmados++
 					nr.NextIndex[i] += len(args.Entries)
@@ -504,7 +504,7 @@ func (nr *NodoRaft) enviarPeticionVoto(nodo int, args *ArgsPeticionVoto,
 
 	err := nr.Nodos[nodo].CallTimeout("NodoRaft.PedirVoto", args, reply,
 									  50*time.Millisecond)
-	check.CheckError(err)
+	check.CheckError(err, "Error en la llamada PedirVoto")
 	if reply.Term > nr.CurrentTerm {
 		// El que me responde tiene mayor Term -> actualizo y paso a seguidor
 		nr.CurrentTerm = reply.Term
@@ -610,7 +610,7 @@ func enviarLatido(nr *NodoRaft){
 			err := nr.Nodos[nodo].CallTimeout("NodoRaft.AppendEntries",
 											  &argumentos, &resultadoAE,
 											  50*Time.Millisecond)
-			check.CheckError(err)
+			check.CheckError(err, "Error en la llamada AppendEntries")
 			if resultadoAE > nr.CurrentTerm {
 				nr.CurrentTerm = resultadoAE.Term
 				nr.VotedFor = -1
