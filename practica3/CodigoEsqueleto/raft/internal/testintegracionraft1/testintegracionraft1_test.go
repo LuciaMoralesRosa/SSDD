@@ -52,7 +52,9 @@ const (
 	REPLICA3 = MAQUINA3REM + ":" + PUERTOREPLICA3REM
 
 	// paquete main de ejecutables relativos a PATH previo
-	EXECREPLICA = "cmd/srvraft/main.go " + REPLICA1 + " " + REPLICA2 + " " + REPLICA3
+	//EXECREPLICA = "cmd/srvraft/main.go " + REPLICA1 + " " + REPLICA2 + " " + REPLICA3
+	REPLICAS    = " " + REPLICA1 + " " + REPLICA2 + " " + REPLICA3
+	EXECREPLICA = "cmd/srvraft/main.go "
 
 	// comandos completo a ejecutar en máquinas remota con ssh. Ejemplo :
 	// 				cd $HOME/raft; go run cmd/srvraft/main.go 127.0.0.1:29001
@@ -65,9 +67,10 @@ const (
 
 // PATH de los ejecutables de modulo golang de servicio Raft
 // var PATH string = filepath.Join(os.Getenv("HOME"), "tmp", "p5", "raft")
-var PATH string = filepath.Join(os.Getenv("HOME"), "raft")
+var PATH string = filepath.Join(os.Getenv("HOME"), "practica3", "CodigoEsqueleto", "raft")
 
 // go run cmd/srvraft/main.go 0 127.0.0.1:29001 127.0.0.1:29002 127.0.0.1:29003
+// go run cmd/srvraft/main.go
 var EXECREPLICACMD string = "cd " + PATH + "; go run " + EXECREPLICA
 
 // TEST primer rango
@@ -411,13 +414,6 @@ func (cfg *configDespliegue) comprobarEstadoRemoto(idNodoDeseado int,
 	idNodo, mandato, esLider, idLider := cfg.obtenerEstadoRemoto(idNodoDeseado)
 
 	cfg.t.Log("Estado replica 0: ", idNodo, mandato, esLider, idLider, "\n")
-	if esLider {
-		fmt.Println("Estado replica 0: " + strconv.Itoa(idNodo) + ", " +
-			strconv.Itoa(mandato) + ", es lider, " + strconv.Itoa(idLider) + "\n")
-	} else {
-		fmt.Println("Estado replica 0: " + strconv.Itoa(idNodo) + ", " +
-			strconv.Itoa(mandato) + ", NO es lider, " + strconv.Itoa(idLider) + "\n")
-	}
 
 	if idNodo != idNodoDeseado || mandato != mandatoDeseado ||
 		esLider != esLiderDeseado || idLider != IdLiderDeseado {

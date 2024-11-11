@@ -204,8 +204,9 @@ func (nr *NodoRaft) obtenerEstado() (int, int, bool, int) {
 	var mandato int
 	var esLider bool
 	var idLider int = nr.IdLider
-
 	// Vuestro codigo aqui
+	nr.Logger.Println("El lider es: " + strconv.Itoa(nr.IdLider))
+	idLider = nr.IdLider
 	mandato = nr.CurrentTerm
 	esLider = nr.Yo == idLider
 
@@ -265,7 +266,7 @@ func (nr *NodoRaft) someterOperacion(operacion TipoOperacion) (int, int,
 				}
 				err := nr.Nodos[i].CallTimeout("NodoRaft.AppendEntries",
 					&argumentos, &resultadoAE,
-					1000*time.Millisecond)
+					33*time.Millisecond)
 				check.CheckError(err, "Error en la llamada AppendEntries")
 				if resultadoAE.Exito {
 					confirmados++
@@ -574,14 +575,16 @@ func maquinaEstadosCandidato(nr *NodoRaft) {
 }
 
 func maquinaEstados(nr *NodoRaft) {
+	time.Sleep(10 * time.Second)
 	nr.Logger.Println("Nodo " + strconv.Itoa(nr.Yo) + " en maquinaEstados")
 	for {
-		switch nr.EstadoNodo {
-		case Lider:
+		for nr.EstadoNodo == Lider {
 			maquinaEstadosLider(nr)
-		case Candidato:
+		}
+		for nr.EstadoNodo == Candidato {
 			maquinaEstadosCandidato(nr)
-		case Seguidor:
+		}
+		for nr.EstadoNodo == Seguidor {
 			maquinaEstadosSeguidor(nr)
 		}
 	}
@@ -610,7 +613,7 @@ func enviarLatido(nr *NodoRaft) {
 			}
 			err := nr.Nodos[nodo].CallTimeout("NodoRaft.AppendEntries",
 				&argumentos, &resultadoAE,
-				1000*time.Millisecond)
+				33*time.Millisecond)
 			//check.CheckError(err, "Error en la llamada AppendEntries")
 			if err != nil {
 				//Ignoramos el error porque puede haber nodos caidos
