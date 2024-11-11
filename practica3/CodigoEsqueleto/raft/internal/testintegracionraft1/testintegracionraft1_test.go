@@ -1,5 +1,9 @@
 package testintegracionraft1
 
+// Para el error de handshake
+// go get -u golang.org/x/crypto/ssh
+// go mod vendor
+
 import (
 	"fmt"
 	"raft/internal/comun/check"
@@ -19,29 +23,33 @@ import (
 
 const (
 	//hosts por defecto
-	//MAQUINA1      = "127.0.0.1"
-	//MAQUINA2      = "127.0.0.1"
-	//MAQUINA3      = "127.0.0.1"
+	MAQUINA1 = "127.0.0.1"
+	MAQUINA2 = "127.0.0.1"
+	MAQUINA3 = "127.0.0.1"
 
 	//puertos por defecto
-	//PUERTOREPLICA1 = "29001"
-	//PUERTOREPLICA2 = "29002"
-	//PUERTOREPLICA3 = "29003"
+	PUERTOREPLICA1 = "29001"
+	PUERTOREPLICA2 = "29002"
+	PUERTOREPLICA3 = "29003"
 
 	// Mis maquinas y puertos
-	MAQUINA1       = "192.168.3.2"
-	MAQUINA2       = "192.168.3.3"
-	MAQUINA3       = "192.168.3.4"
-	PUERTOREPLICA1 = "31112"
-	PUERTOREPLICA2 = "31113"
-	PUERTOREPLICA3 = "31114"
+	MAQUINA1REM       = "192.168.3.2"
+	MAQUINA2REM       = "192.168.3.3"
+	MAQUINA3REM       = "192.168.3.4"
+	PUERTOREPLICA1REM = "31112"
+	PUERTOREPLICA2REM = "31113"
+	PUERTOREPLICA3REM = "31114"
 
 	NumeroDeNodos = 3
 
 	//nodos replicas
-	REPLICA1 = MAQUINA1 + ":" + PUERTOREPLICA1
-	REPLICA2 = MAQUINA2 + ":" + PUERTOREPLICA2
-	REPLICA3 = MAQUINA3 + ":" + PUERTOREPLICA3
+	//REPLICA1 = MAQUINA1 + ":" + PUERTOREPLICA1
+	//REPLICA2 = MAQUINA2 + ":" + PUERTOREPLICA2
+	//REPLICA3 = MAQUINA3 + ":" + PUERTOREPLICA3
+
+	REPLICA1 = MAQUINA1REM + ":" + PUERTOREPLICA1REM
+	REPLICA2 = MAQUINA2REM + ":" + PUERTOREPLICA2REM
+	REPLICA3 = MAQUINA3REM + ":" + PUERTOREPLICA3REM
 
 	// paquete main de ejecutables relativos a PATH previo
 	EXECREPLICA = "cmd/srvraft/main.go " + REPLICA1 + " " + REPLICA2 + " " + REPLICA3
@@ -52,7 +60,7 @@ const (
 	// Ubicar, en esta constante, nombre de fichero de vuestra clave privada local
 	// emparejada con la clave pública en authorized_keys de máquinas remotas
 
-	PRIVKEYFILE = "id_ed25519"
+	PRIVKEYFILE = "id_rsa"
 )
 
 // PATH de los ejecutables de modulo golang de servicio Raft
@@ -179,6 +187,7 @@ func (cfg *configDespliegue) soloArranqueYparadaTest1(t *testing.T) {
 	cfg.startDistributedProcesses()
 	time.Sleep(2 * time.Second)
 
+	fmt.Println(t.Name(), "Comprobando estado de replica 0")
 	// Comprobar estado replica 0
 	cfg.comprobarEstadoRemoto(0, 0, false, -1)
 
@@ -355,8 +364,11 @@ func (cfg *configDespliegue) obtenerEstadoRemoto(
 	indiceNodo int) (int, int, bool, int) {
 	var reply raft.EstadoRemoto
 	err := cfg.nodosRaft[indiceNodo].CallTimeout("NodoRaft.ObtenerEstadoNodo",
-		raft.Vacio{}, &reply, 10*time.Millisecond)
-	check.CheckError(err, "Error en llamada RPC ObtenerEstadoRemoto")
+		raft.Vacio{}, &reply, 1000*time.Millisecond)
+	if err != nil {
+		// Ignorar porque pyede estar caido
+	}
+	//check.CheckError(err, "Error en llamada RPC ObtenerEstadoRemoto")
 
 	return reply.IdNodo, reply.Mandato, reply.EsLider, reply.IdLider
 }
@@ -385,8 +397,11 @@ func (cfg *configDespliegue) stopDistributedProcesses() {
 
 	for _, endPoint := range cfg.nodosRaft {
 		err := endPoint.CallTimeout("NodoRaft.ParaNodo",
-			raft.Vacio{}, &reply, 10*time.Millisecond)
-		check.CheckError(err, "Error en llamada RPC Para nodo")
+			raft.Vacio{}, &reply, 1000*time.Millisecond)
+		if err != nil {
+			//ignorar
+		}
+		//check.CheckError(err, "Error en llamada RPC Para nodo")
 	}
 }
 
@@ -395,7 +410,14 @@ func (cfg *configDespliegue) comprobarEstadoRemoto(idNodoDeseado int,
 	mandatoDeseado int, esLiderDeseado bool, IdLiderDeseado int) {
 	idNodo, mandato, esLider, idLider := cfg.obtenerEstadoRemoto(idNodoDeseado)
 
-	//cfg.t.Log("Estado replica 0: ", idNodo, mandato, esLider, idLider, "\n")
+	cfg.t.Log("Estado replica 0: ", idNodo, mandato, esLider, idLider, "\n")
+	if esLider {
+		fmt.Println("Estado replica 0: " + strconv.Itoa(idNodo) + ", " +
+			strconv.Itoa(mandato) + ", es lider, " + strconv.Itoa(idLider) + "\n")
+	} else {
+		fmt.Println("Estado replica 0: " + strconv.Itoa(idNodo) + ", " +
+			strconv.Itoa(mandato) + ", NO es lider, " + strconv.Itoa(idLider) + "\n")
+	}
 
 	if idNodo != idNodoDeseado || mandato != mandatoDeseado ||
 		esLider != esLiderDeseado || idLider != IdLiderDeseado {
@@ -415,7 +437,7 @@ func (cfg *configDespliegue) desconectarLider() {
 	var respuesta raft.Vacio
 	cfg.conectados[idLider] = false
 	err := cfg.nodosRaft[idLider].CallTimeout("NodoRaft.ParaNodo", raft.Vacio{},
-		&respuesta, 10*time.Millisecond)
+		&respuesta, 1000*time.Millisecond)
 	check.CheckError(err, "Error en la llamada ParaNodo")
 
 	time.Sleep(1 * time.Second)

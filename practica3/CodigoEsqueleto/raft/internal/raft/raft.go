@@ -28,6 +28,7 @@ import (
 	"log"
 	"math/rand"
 	"os"
+	"strconv"
 
 	//"crypto/rand"
 	"sync"
@@ -229,6 +230,7 @@ func (nr *NodoRaft) obtenerEstado() (int, int, bool, int) {
 // Cuarto valor es el lider, es el indice del líder si no es él
 func (nr *NodoRaft) someterOperacion(operacion TipoOperacion) (int, int,
 	bool, int, string) {
+	nr.Logger.Println("Nodo " + strconv.Itoa(nr.Yo) + " en SometerOperacion")
 	indice := -1
 	mandato := -1
 	EsLider := false
@@ -263,7 +265,7 @@ func (nr *NodoRaft) someterOperacion(operacion TipoOperacion) (int, int,
 				}
 				err := nr.Nodos[i].CallTimeout("NodoRaft.AppendEntries",
 					&argumentos, &resultadoAE,
-					50*time.Millisecond)
+					1000*time.Millisecond)
 				check.CheckError(err, "Error en la llamada AppendEntries")
 				if resultadoAE.Exito {
 					confirmados++
@@ -355,6 +357,7 @@ type RespuestaPeticionVoto struct {
 func (nr *NodoRaft) PedirVoto(peticion *ArgsPeticionVoto,
 	reply *RespuestaPeticionVoto) error {
 	// Vuestro codigo aqui
+	nr.Logger.Println("Nodo " + strconv.Itoa(nr.Yo) + " en PedirVoto")
 	lastLogIndex, lastLogTerm := obtenerLastLog(nr)
 	if peticion.Term > nr.CurrentTerm {
 		nr.SoySeguidor <- true
@@ -487,12 +490,17 @@ func (nr *NodoRaft) AppendEntries(args *ArgAppendEntries,
 func (nr *NodoRaft) enviarPeticionVoto(nodo int, args *ArgsPeticionVoto,
 	reply *RespuestaPeticionVoto) bool {
 	// Completar....
+	nr.Logger.Println("Nodo " + strconv.Itoa(nr.Yo) + " en enviarPeticionVoto")
 	nr.Mux.Lock()
 	defer nr.Mux.Unlock()
 
-	err := nr.Nodos[nodo].CallTimeout("NodoRaft.PedirVoto", args, reply,
+	err := nr.Nodos[nodo].CallTimeout("NodoRaft.PedirVoto", &args, &reply,
 		33*time.Millisecond)
-	check.CheckError(err, "Error en la llamada PedirVoto")
+	//check.CheckError(err, "Error en la llamada PedirVoto")
+	if err != nil {
+		// Ignoramos el error porque el nodo podria estar caido
+	}
+
 	if reply.Term > nr.CurrentTerm {
 		// El que me responde tiene mayor Term -> actualizo y paso a seguidor
 		nr.CurrentTerm = reply.Term
@@ -520,6 +528,7 @@ func (nr *NodoRaft) enviarPeticionVoto(nodo int, args *ArgsPeticionVoto,
 
 // --------------------------- OTROS METODOS -----------------------------------
 func maquinaEstadosLider(nr *NodoRaft) {
+	nr.Logger.Println("Nodo " + strconv.Itoa(nr.Yo) + " en maquinaEstadosLider")
 	nr.IdLider = nr.Yo
 	temporizador := time.NewTimer(50 * time.Millisecond)
 	go enviarLatido(nr)
@@ -533,6 +542,7 @@ func maquinaEstadosLider(nr *NodoRaft) {
 }
 
 func maquinaEstadosSeguidor(nr *NodoRaft) {
+	nr.Logger.Println("Nodo " + strconv.Itoa(nr.Yo) + " en maquinaEstadosSeguidor")
 	select {
 	case <-time.After(generarTiempoAleatorio()):
 		nr.IdLider = -1
@@ -543,6 +553,7 @@ func maquinaEstadosSeguidor(nr *NodoRaft) {
 }
 
 func maquinaEstadosCandidato(nr *NodoRaft) {
+	nr.Logger.Println("Nodo " + strconv.Itoa(nr.Yo) + " en maquinaEstadosCandidato")
 	nr.CurrentTerm++      // Se inicia un nuevo termino
 	nr.VotosParaLider = 1 // Se propone como lider y se vota
 	nr.VotedFor = nr.Yo   // Se vota a su mismo para lider
@@ -555,6 +566,7 @@ func maquinaEstadosCandidato(nr *NodoRaft) {
 		nr.EstadoNodo = Seguidor // Si le llega un latido es que hay lider
 	case <-nr.SoyLider:
 		nr.EstadoNodo = Lider
+		nr.Logger.Println("Nodo " + strconv.Itoa(nr.Yo) + " soy lider")
 	case <-temporizador.C:
 		nr.EstadoNodo = Candidato // Se establece como candidato y se
 		// repetira la votacion
@@ -562,6 +574,7 @@ func maquinaEstadosCandidato(nr *NodoRaft) {
 }
 
 func maquinaEstados(nr *NodoRaft) {
+	nr.Logger.Println("Nodo " + strconv.Itoa(nr.Yo) + " en maquinaEstados")
 	for {
 		switch nr.EstadoNodo {
 		case Lider:
@@ -575,6 +588,7 @@ func maquinaEstados(nr *NodoRaft) {
 }
 
 func enviarLatido(nr *NodoRaft) {
+	nr.Logger.Println("Nodo " + strconv.Itoa(nr.Yo) + " en enviarLatido")
 	var resultadoAE Results
 	for nodo := 0; nodo < len(nr.Nodos); nodo++ {
 		if nodo != nr.Yo {
@@ -596,8 +610,11 @@ func enviarLatido(nr *NodoRaft) {
 			}
 			err := nr.Nodos[nodo].CallTimeout("NodoRaft.AppendEntries",
 				&argumentos, &resultadoAE,
-				50*time.Millisecond)
-			check.CheckError(err, "Error en la llamada AppendEntries")
+				1000*time.Millisecond)
+			//check.CheckError(err, "Error en la llamada AppendEntries")
+			if err != nil {
+				//Ignoramos el error porque puede haber nodos caidos
+			}
 			if resultadoAE.Term > nr.CurrentTerm {
 				nr.CurrentTerm = resultadoAE.Term
 				nr.VotedFor = -1
@@ -615,12 +632,15 @@ func enviarLatido(nr *NodoRaft) {
 }
 
 func nuevaEleccion(nr *NodoRaft) {
+	nr.Logger.Println("Nodo " + strconv.Itoa(nr.Yo) + " en nuevaEleccion")
 	lastLogIndex, lastLogTerm := obtenerLastLog(nr)
 	argumentos := ArgsPeticionVoto{nr.CurrentTerm, nr.Yo, lastLogIndex,
 		lastLogTerm}
 	var resultadoPV RespuestaPeticionVoto
 	for nodo := 0; nodo < len(nr.Nodos); nodo++ {
 		if nodo != nr.Yo {
+			nr.Logger.Println("Nodo " + strconv.Itoa(nr.Yo) +
+				" en nuevaEleccion. Voy a pedir voto a " + strconv.Itoa(nodo))
 			go nr.enviarPeticionVoto(nodo, &argumentos, &resultadoPV)
 		}
 	}
