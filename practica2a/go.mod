@@ -1,3 +1,3 @@
-module practica2
+module practica2a
 
 go 1.18
