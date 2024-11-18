@@ -1,53 +1,44 @@
 package main
 
 import (
-	"fmt"
-	"os"
-	g "practica2/gestor"
+	"practica2/com"
 	"practica2/ra"
 	"strconv"
+	"sync"
 )
 
-// Maneja los errores del sistema, mostrandolo por pantalla y terminando la ejecucion
-func checkError(err error) {
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Fatal error: %s", err.Error())
-		os.Exit(1)
-	}
-}
-
-func escribir(ra *ra.RASharedDB, ficheroEscritura string, textoEscritura string, gestor *g.Gestor) {
-	for i := 0; i < 5; i++ {
-		fmt.Println("Depuracion escritor.escribir iteracion " + strconv.Itoa(i))
-		fmt.Println("Depuracion escritor.escribir entrando a ra.PreProtocol")
-		ra.PreProtocol()
-		fmt.Println("Depuracion escritor.escribir entrando a gestor.escribirFichero")
-		gestor.EscribirFichero(ficheroEscritura, textoEscritura)
-		fmt.Println("Depuracion escritor.escribir entrando a ra.escribirTexto")
-		ra.EscribirTexto(ficheroEscritura, textoEscritura+" "+strconv.Itoa(i))
-		fmt.Println("Depuracion escritor.escribir entrando a ra.PostProtocol")
-		ra.PostProtocol()
-	}
-}
+const endpointBarrera = "192.168.3.1:31110"
+const puerto = ":31111"
+const segundos = 5
+const maxPeticiones = 100
 
 func main() {
-	/*go run main.go 1 ../../ms/users.txt ../ficheroTexto.txt heEscritoEstoooYEY*/
+	com.LimpiarTodosLosPuertos()
+	id := com.ObtenerArgumentos()
 
-	lineNumber, err := strconv.Atoi(os.Args[1])
-	if err != nil || lineNumber < 1 {
-		fmt.Println("Invalid line number")
-		return
+	// Inicializacion de ra
+	ra := ra.New(id, "usuarios.txt", "escribir")
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go com.Esperar(&wg, puerto)
+
+	com.EstoyListo(id, endpointBarrera)
+	wg.Wait() // Esperar a que todos esten listos
+
+	go com.Final(5)
+
+	// Escribir
+	for i := 1; i < maxPeticiones; i++ {
+		ra.PreProtocol()
+		textoAEscribir := "Soy " + strconv.Itoa(id) + " y esta es la vez " +
+			"numero " + strconv.Itoa(i) + " que escribo"
+		ra.Fichero.Escribir(textoAEscribir)
+		ra.EnviarActualizar(textoAEscribir)
+		ra.PostProtocol()
 	}
 
-	ficheroUsuarios := os.Args[2]
-	procesoEscritor := true
-	ficheroEscritura := os.Args[3]
-	textoEscritura := os.Args[4]
+	for {
+	}
 
-	//todosNodosConectados(lineNumber, ficheroUsuarios)
-	gestor := g.New()
-
-	ra := ra.New(lineNumber, ficheroUsuarios, procesoEscritor, gestor)
-
-	go escribir(ra, ficheroEscritura, textoEscritura, &gestor)
 }

@@ -1,6 +1,5 @@
 /*
 * AUTOR: Rafael Tolosana Calasanz
-* Autores: Lizer Bernad (779035) y Lucia Morales (816906)
 * ASIGNATURA: 30221 Sistemas Distribuidos del Grado en Ingeniería Informática
 *			Escuela de Ingeniería y Arquitectura - Universidad de Zaragoza
 * FECHA: septiembre de 2021
@@ -10,259 +9,235 @@
 package ra
 
 import (
-	"bufio"
-	"fmt"
-	"os"
-	g "practica2/gestor"
+	"practica2/gf"
 	"practica2/ms"
 	"strconv"
 	"sync"
 
-	"github.com/DistributedClocks/GoVector/govec"
+	"github.com/DistributedClocks/GoVector/govec/vclock"
 )
 
 type Request struct {
-	Clock             []byte // Marca temporal vectorial
-	Pid               int    // PID del proceso solicitante
-	PeticionEscritura bool   // Indica si es peticion de escritura (true) o lectura (false)
-	NumeroSecuencia   int    // Numero de secuencia
+	Clock     vclock.VClock //Reloj vectorial
+	Pid       int
+	Operacion string // Tipo de operacion: "read" o "write"
 }
 
-type Reply struct {
-	Clock []byte // Marca temporal vectorial
-}
+type Reply struct{}
 
-type Escribir struct {
-	Fichero string // fichero donde escribir
-	Texto   string // Contenido a escribir
-	Clock   []byte // Marca temporal vectorial
+type Exclusion struct {
+	op1 string
+	op2 string
 }
 
 type RASharedDB struct {
-	nodos     int               // Numero de nodos
-	OurSeqNum int               // Numero de secuencia actual
-	HigSeqNum int               // Numero de secuencia mas alto observado
-	OutRepCnt int               // Respuestas externas pendientes
-	ReqCS     bool              // Indica si el proceso esta solicitando acceso a SC
-	RepDefd   []bool            // Array de pospuestos
-	ms        *ms.MessageSystem // Gestor de mensajes
-	done      chan bool         // Canal para el manejo de la terminacion
-	chrep     chan bool         // Canal para el manejo de respuestas
-
-	// Para lectores y escritores
-	procesoEscritor bool // Indica si el proceso es escritor (true) o lector (false)
-	// Para relojes vectoriales
-	logger *govec.GoLog // Manejo de relojes vectoriales y trazabilidad distribuida
-	g      *g.Gestor
-	// mutex para proteger concurrencia sobre las variables
-	Mutex sync.Mutex
+	OurSeqNum vclock.VClock
+	HigSeqNum vclock.VClock
+	OutRepCnt int
+	ReqCS     bool
+	RepDefd   []bool
+	ms        *ms.MessageSystem
+	done      chan bool
+	chrep     chan bool
+	Mutex     sync.Mutex // mutex para proteger concurrencia sobre las variables
+	// TODO: completar
+	peticion            chan Request
+	respuesta           chan Reply
+	respuestaActualizar chan RespuestaActualizar
+	Operacion           string
+	Fichero             *gf.Fichero
+	yo                  string
 }
 
-//[0][0] -> lector lector
-//[0][1] -> lector escritor
-//[1][0] -> escritor lector
-//[1][1] -> escritor escritor
+type Actualizar struct {
+	Pid   int
+	Texto string
+}
+
+type RespuestaActualizar struct{}
+
+const nProcesos = 6
 
 var matrizExclusion = [2][2]bool{
 	{false, true}, // un lector no bloauea a otros lectores pero un escritor bloquea a todos
 	{true, true},  // Un escritor bloquea tanto a lectores como a escritores
 }
 
-// Inicializa una nueva instancia de RASharedBD
-func New(me int, usersFile string, esEscritor bool, g g.Gestor) *RASharedDB {
-	fmt.Println("Depuracion ra.New: Entrando a ra")
-	// Definicion de los tipos de mensajes que soporta el sistema
-	messageTypes := []ms.Message{Request{}, Reply{}, Escribir{}} // Tipos de mensajes
-	// Inicializacion del logger
-	logger := govec.InitGoVector("Mi proceso: "+strconv.Itoa(me), "LogFile", govec.GetDefaultConfig())
-
-	// Creacion del gestor de mensajes
+func New(me int, usersFile string, op string) *RASharedDB {
+	messageTypes := []ms.Message{Request{}, Reply{}, Actualizar{}, RespuestaActualizar{}}
 	msgs := ms.New(me, usersFile, messageTypes)
-	nodes := contarLineas(usersFile)
-	// Inicializacion de la estructura ra
-	ra := RASharedDB{nodes, 0, 0, 0, false, make([]bool, nodes), &msgs, make(chan bool),
-		make(chan bool), esEscritor, logger, &g, sync.Mutex{}}
 
-	fmt.Println("Depuracion ra.New: se ha guardado la estructura y se va a lanzar la goroutine ra.recibirMensaje")
-	// goroutina de recepcion de mensajes
-	//go ra.recibirMensaje()
-	for {}
+	yo := strconv.Itoa(me)
+
+	// Inicializacion de los relojes vectoriales
+	reloj1 := vclock.New()
+	reloj1.Set(yo, 0)
+	reloj2 := vclock.New()
+	reloj2.Set(yo, 0)
+
+	fichero := gf.CrearFichero("fichero_" + yo + ".txt")
+
+	ra := RASharedDB{reloj1, reloj2, 0, false, make([]bool, nProcesos), &msgs,
+		make(chan bool), make(chan bool), sync.Mutex{}, make(chan Request),
+		make(chan Reply), make(chan RespuestaActualizar), op, fichero, yo}
+
+	go recibirMensaje(&ra)
+	go manejoPeticiones(&ra)
+	go manejoRespuestas(&ra)
+
 	return &ra
 }
 
-// Gestiona los mensajes entrantes. Constantemente esta esperando mensajes entrantes.
-func (ra *RASharedDB) recibirMensaje() {
-	fmt.Println("Depuracion ra.recibirMensaje: Se ha lanzado correctamente")
-	for {
-		msg := ra.ms.Receive()
-		var entrada string
-		switch x := msg.(type) {
-		case Request:
-			fmt.Println("Depuracion ra.recibirMensaje: Se ha recibido una request")
-			ra.logger.UnpackReceive("Recibir respuesta", x.Clock, &entrada,
-				govec.GetDefaultLogOptions())
-			ra.peticionRecibida(x)
-		case Reply:
-			fmt.Println("Depuracion ra.recibirMensaje: Se ha recibido una reply")
-			ra.logger.UnpackReceive("Recibir respuesta", x.Clock, &entrada,
-				govec.GetDefaultLogOptions())
-			ra.respuestaRecibida()
-		case Escribir:
-			fmt.Println("Depuracion ra.recibirMensaje: Se ha recibido una escribir")
-			ra.logger.UnpackReceive("Recibir escritura: "+x.Texto, x.Clock, &entrada,
-				govec.GetDefaultLogOptions())
-			ra.escribir(x.Fichero, x.Texto)
-		}
-	}
-}
-
-func (ra *RASharedDB) escribir(fichero string, texto string) {
-	fmt.Println("Depuracion ra.escribir: se va a llamar al gestor para escribirFichero")
-	ra.g.EscribirFichero(fichero, texto)
-}
-
-func (ra *RASharedDB) respuestaRecibida() {
-	ra.chrep <- true
-}
-
-func (ra *RASharedDB) peticionRecibida(mensaje Request) {
-	fmt.Println("Depuracion ra.peticionRecibida: Se ha recibido una peticion")
-	var posponerPeticion bool
-	ra.Mutex.Lock() // Vamos a bloquear
-	ra.HigSeqNum = max(ra.HigSeqNum, mensaje.NumeroSecuencia)
-
-	// Se pospone la peticion si:
-	//	1 - Mi numero de secuencia es menor al numero de secuencia del mensaje
-	//	2 - Los numero de secuencia son iguales pero mi pid es menor
-	posponerPeticion = ra.ReqCS && (ra.OurSeqNum < mensaje.NumeroSecuencia ||
-		(ra.OurSeqNum == mensaje.NumeroSecuencia && ra.ms.Me() < mensaje.Pid))
-	if posponerPeticion {
-		fmt.Println("Depuracion ra.peticionRecibida: se ha decidido posponer peticion")
-	} else {
-		fmt.Println("Depuracion ra.peticionRecibida: No se pospone la peticion")
-	}
-	ra.Mutex.Unlock()
-
-	// Si se pospone la peticion y soy un proceso escritor o la peticion es de escritura
-	if posponerPeticion && (matrizExclusion[boolToInt(ra.procesoEscritor)][boolToInt(mensaje.PeticionEscritura)]) {
-		fmt.Println("Depuracion ra.peticionRecibida: Estoy en el if de peticion pospuesta o proceso escritor o escritura")
-		ra.logger.LogLocalEvent("Posponer", govec.GetDefaultLogOptions())
-		ra.Mutex.Lock()
-		// Indicamos que se ha pospuesto un mensaje del proceso pid
-		ra.RepDefd[mensaje.Pid-1] = true
-		ra.Mutex.Unlock()
-	} else {
-		fmt.Println("Depuracion ra.peticionRecibida: Estoy en el else asi que no se ha pospuesto ni soy escritor ni es de escritura")
-		// Si no se pospone o es un proceso de lectura y una peticion de lectura
-		datosEnvio := ra.logger.PrepareSend("Enviar respuesta", "Respuesta", govec.GetDefaultLogOptions())
-		ra.ms.Send(mensaje.Pid, Reply{datosEnvio})
-	}
-}
-
-func (ra *RASharedDB) EscribirTexto(fichero string, texto string) {
-	fmt.Println("Depuracion ra.EscribirTexto: Estoy en escribir texto y voy a mandar un mensaje a todos los otros procesos para que escriban mi texto: " + texto)
-	ra.logger.LogLocalEvent("Indicar escritura", govec.GetDefaultLogOptions())
-	for i := 1; i <= ra.nodos; i++ {
-		if i != ra.ms.Me() {
-			datosEnvio := ra.logger.PrepareSend("Enviar escribir", "Escritura", govec.GetDefaultLogOptions())
-			ra.ms.Send(i, Escribir{fichero, texto, datosEnvio})
-		}
-	}
-}
-
 // Pre: Verdad
-// Post: Realiza  el  PreProtocol  para el  algoritmo de
-//
-//	Ricart-Agrawala Generalizado
-//
-// Proceso que isgue in proceso cuando quiere acceder a la seccion critica
+// Post: Realiza  el  PreProtocol  para el  algoritmo de Ricart-Agrawala
+// Generalizado
 func (ra *RASharedDB) PreProtocol() {
-	fmt.Println("Depuracion ra.Preprotocol: Estoy al principio del preprotocolo")
+	// TODO completar
 	ra.Mutex.Lock()
-	ra.ReqCS = true
-	ra.OurSeqNum = ra.HigSeqNum + 1
-	ra.Mutex.Unlock()
-	ra.OutRepCnt = ra.nodos - 1
 
-	// Enviar peticion a todos menos a mi mismo
-	for i := 1; i <= ra.nodos; i++ {
-		if i != ra.ms.Me() {
-			fmt.Println("Depuracion ra.PreProtocol: Estoy enviando peticion a " + strconv.Itoa(i))
-			datosEnvio := ra.logger.PrepareSend("Enviar peticion", "Peticion",
-				govec.GetDefaultLogOptions())
-			ra.ms.Send(i, Request{datosEnvio, ra.ms.Me(), ra.procesoEscritor,
-				ra.OurSeqNum})
+	ra.ReqCS = true //
+
+	// Incrementar numero de secuencia y actualizacion si es necesario
+	ra.OurSeqNum[ra.yo] = ra.HigSeqNum[ra.yo] + 1
+	ra.OurSeqNum.Merge(ra.HigSeqNum)
+
+	ra.Mutex.Unlock()
+
+	ra.OutRepCnt = nProcesos - 1 // Esperamos n-1 respuestas
+
+	for i := 1; i <= nProcesos; i++ {
+		if i != ra.ms.Me {
+			peticion := Request{
+				Pid:       ra.ms.Me,
+				Clock:     ra.OurSeqNum,
+				Operacion: ra.Operacion,
+			}
+			ra.ms.Send(i, peticion)
 		}
 	}
 
-	fmt.Println("Depuracion ra.PreProtocol: descendiendo outRepCnt a cero y vaciando canal")
-	for ra.OutRepCnt > 0 {
-		<-ra.chrep
-		ra.OutRepCnt = ra.OutRepCnt - 1
-	}
-
+	// Esperamos a obtener todas las respuestas
+	<-ra.chrep
 }
 
 // Pre: Verdad
-// Post: Realiza  el  PostProtocol  para el  algoritmo de
-//
-//	Ricart-Agrawala Generalizado
-//
-// El proceso libera la seccion critica y notifica a todos los procesos
+// Post: Realiza  el  PostProtocol  para el  algoritmo de Ricart-Agrawala
+// Generalizado
 func (ra *RASharedDB) PostProtocol() {
-	fmt.Println("Depuracion ra.postProtocol: Estoy en el postprotocolo")
+	// TODO completar
 	ra.Mutex.Lock()
 	ra.ReqCS = false
-	for i := 1; i <= ra.nodos; i++ {
+	ra.Mutex.Unlock()
+
+	for i := 1; i <= nProcesos; i++ {
 		if ra.RepDefd[i-1] {
-			fmt.Println("Depuracion ra.liberandome de la seccion critica con " + strconv.Itoa(i))
 			ra.RepDefd[i-1] = false
-			datosEnvio := ra.logger.PrepareSend("Enviar respuesta", "Respuesta",
-				govec.GetDefaultLogOptions())
-			ra.ms.Send(i, Reply{datosEnvio})
+			ra.Mutex.Lock()
+			ra.ms.Send(i, Reply{})
+			ra.Mutex.Unlock()
 		}
 	}
-	ra.Mutex.Unlock()
 }
 
 func (ra *RASharedDB) Stop() {
-	fmt.Println("Depuracion ra.Stop: enviando al canal un true para terminar")
 	ra.ms.Stop()
 	ra.done <- true
 }
 
-func contarLineas(ruta string) int {
-	archivo, err := os.Open(ruta)
-	if err != nil {
-		return 0
-	}
-	defer archivo.Close()
-
-	scanner := bufio.NewScanner(archivo)
-	lineas := 0
-	for scanner.Scan() {
-		lineas++
-	}
-
-	if err := scanner.Err(); err != nil {
-		return 0
-	}
-
-	return lineas
-}
-
-func boolToInt(valor bool) int {
-	if valor {
-		return 1
-	} else {
-		return 0
+// Pre:
+// Post: Devuelve true si el proceso con pid "yo" tiene prioridad sobre el
+// el proceso con pid "otro"
+func tengoPrioridad(reloj1 vclock.VClock, reloj2 vclock.VClock, yo int, otro int) bool {
+	if reloj1.Compare(reloj2, vclock.Descendant) { // Si reloj1 es mas reciente
+		return true
+	} else if reloj1.Compare(reloj2, vclock.Concurrent) { // Si son iguales
+		return yo < otro
+	} else { // Si reloj2 es mas reciente
+		return false
 	}
 }
 
-func max(valor1 int, valor2 int) int {
-	if valor1 > valor2 {
-		return valor1
+func recibirMensaje(ra *RASharedDB) {
+	for {
+		mensaje := ra.ms.Receive()
+		switch tipoMensaje := mensaje.(type) {
+		case Request:
+			ra.peticion <- tipoMensaje
+		case Reply:
+			ra.respuesta <- tipoMensaje
+		case Actualizar:
+			ra.Fichero.Escribir(tipoMensaje.Texto)
+			ra.ms.Send(tipoMensaje.Pid, RespuestaActualizar{})
+		case RespuestaActualizar:
+			ra.respuestaActualizar <- tipoMensaje
+		}
+	}
+}
+
+// Pre: Verdad
+// Post: Cuando llega una peticion:
+//   - Si el proceso tiene prioridad envia la peticion.
+//   - Si no tiene prioridad o no pide acceso a SC se pospone la peticion
+func manejoPeticiones(ra *RASharedDB) {
+	for {
+		// Obtener la peticion
+		peticion := <-ra.peticion
+		peticionReloj := peticion.Clock
+
+		// Actualizo el reloj y veo si pospongo la peticion
+		ra.Mutex.Lock()
+		ra.HigSeqNum[ra.yo] = calcularMax(ra.HigSeqNum[ra.yo],
+			peticionReloj[strconv.Itoa(peticion.Pid)])
+		ra.HigSeqNum.Merge(peticionReloj) // Se añade el nuevo reloj de la peticion
+		posponer := ra.ReqCS && tengoPrioridad(ra.OurSeqNum, peticionReloj,
+			ra.ms.Me, peticion.Pid)
+		ra.Mutex.Unlock()
+
+		if posponer {
+			ra.RepDefd[peticion.Pid-1] = true // Posponemos
+		} else {
+			ra.Mutex.Lock()
+			ra.ms.Send(peticion.Pid, Reply{}) // Hacemos peticion
+			ra.Mutex.Unlock()
+		}
+	}
+}
+
+// Pre: Verdad
+// Post: Decrementa el numero de respuestas esperadas y avisa al canal si se han
+// recibido todas las respuestas esperadas
+func manejoRespuestas(ra *RASharedDB) {
+	for {
+		<-ra.respuesta // Cuando llega una respuesta
+		ra.OutRepCnt-- // Decrementar el numero de respuestas esperadas
+		if ra.OutRepCnt == 0 {
+			ra.chrep <- true // Si se han obtenido todas las respuestas se manda true al canal
+		}
+	}
+}
+
+// Pre: texto es una cadena de texto valida
+// Post: Envia un mensaje de actualizacion a los procesos y espera nProcesos-1
+// respuestas
+func (ra *RASharedDB) EnviarActualizar(texto string) {
+	yo := ra.ms.Me
+	for i := 1; i < nProcesos; i++ {
+		if i != yo {
+			ra.ms.Send(i, Actualizar{yo, texto})
+		}
+	}
+
+	respuestasEsperadas := nProcesos - 1
+	for respuestasEsperadas > 0 {
+		<-ra.respuestaActualizar
+		respuestasEsperadas--
+	}
+}
+
+func calcularMax(a, b uint64) uint64 {
+	if a < b {
+		return b
 	} else {
-		return valor2
+		return a
 	}
 }
