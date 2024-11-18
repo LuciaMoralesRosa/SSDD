@@ -1,4 +1,5 @@
 
+#!/bin/bash
 scp -r "/home/$USER/Practicas/SSDD/practica2" "$USER@192.168.3.1:/home/$USER"
 
 direcciones=("192.168.3.2" "192.168.3.3" "192.168.3.4")

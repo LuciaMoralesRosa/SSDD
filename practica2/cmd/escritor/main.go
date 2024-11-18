@@ -1,6 +1,7 @@
 package main
 
 import (
+	"os"
 	"practica2/com"
 	"practica2/ra"
 	"strconv"
@@ -13,8 +14,12 @@ const segundos = 5
 const maxPeticiones = 100
 
 func main() {
+	com.Depuracion("Escritor - Lanzando al escritor")
 	com.LimpiarTodosLosPuertos()
-	id := com.ObtenerArgumentos()
+	com.Depuracion("Escritor - Se han limpiado los puertos")
+	//id := com.ObtenerArgumentos()
+	id, _ := strconv.Atoi(os.Args[1])
+	com.Depuracion("Escritor - Se han obtenido los argumentos")
 
 	// Inicializacion de ra
 	ra := ra.New(id, "usuarios.txt", "escribir")

@@ -86,7 +86,8 @@ func New(me int, usersFile string, esEscritor bool, g g.Gestor) *RASharedDB {
 	fmt.Println("Depuracion ra.New: se ha guardado la estructura y se va a lanzar la goroutine ra.recibirMensaje")
 	// goroutina de recepcion de mensajes
 	//go ra.recibirMensaje()
-	for {}
+	for {
+	}
 	return &ra
 }
 

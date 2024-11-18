@@ -18,15 +18,17 @@ const puerto = ":31110"
 const tiempoDomir = 6
 
 func lanzarProcesos(tipo string, direccion string, id int, usuario string) {
-	err := exec.Command("ssh", direccion, "/home/"+usuario+"practica2/cmd/"+tipo+"/"+tipo,
-		strconv.Itoa(id), "> output.log 2> error.log").Run()
+	dir := " /home/" + usuario + "/practica2/cmd/" + tipo + "/main "
+	com.Depuracion("Ejecucion - Lanzar Procesos: Ejecutando... ssh" + direccion + dir + strconv.Itoa(id))
+	err := exec.Command("ssh", direccion, dir, strconv.Itoa(id), "> output.log 2> error.log").Run()
+	com.Depuracion("El comando se ha ejecutado correctamente")
 	com.CheckError(err)
 }
 
 func iniciarProcesos(usuario string) {
 	id := 1
 	for i := 2; i <= 4; i++ {
-		direccion := fmt.Sprintf("%s%d", "192.168.3.", i)
+		direccion := fmt.Sprintf("%s@%s%d", usuario, "192.168.3.", i)
 		go lanzarProcesos("lector", direccion, id, usuario)
 		id++
 		go lanzarProcesos("escritor", direccion, id, usuario)
@@ -58,7 +60,7 @@ func esperarProcesos(wg *sync.WaitGroup) {
 }
 
 func trabajar() {
-	fichero, err := os.Open("ms/usuariosBarrera")
+	fichero, err := os.Open("ms/usuariosBarrera.txt")
 	com.CheckError(err)
 	defer fichero.Close()
 
@@ -82,8 +84,10 @@ func trabajar() {
 }
 
 func main() {
+	com.Depuracion("Ejecucion - Creando fichero depuracion")
 
 	if len(os.Args) != 2 {
+		com.Depuracion("Ejecucion - n parametros incorrecto")
 		fmt.Println("Numero de parametros incorrecto")
 		os.Exit(1)
 	}
@@ -91,8 +95,10 @@ func main() {
 
 	var wg sync.WaitGroup
 	wg.Add(1)
+	com.Depuracion("Ejecucion - lanzando espera procesos")
 	go esperarProcesos(&wg)
 
+	com.Depuracion("Ejecucion - Iniciando procesos")
 	iniciarProcesos(usuario)
 	wg.Wait()
 
