@@ -15,14 +15,14 @@ const maxPeticiones = 100
 
 func main() {
 	com.Depuracion("Escritor - Lanzando al escritor")
-	com.LimpiarTodosLosPuertos()
+	//com.LimpiarTodosLosPuertos()
 	com.Depuracion("Escritor - Se han limpiado los puertos")
 	//id := com.ObtenerArgumentos()
 	id, _ := strconv.Atoi(os.Args[1])
 	com.Depuracion("Escritor - Se han obtenido los argumentos")
 
 	// Inicializacion de ra
-	ra := ra.New(id, "usuarios.txt", "escribir")
+	ra := ra.New(id, "ms/usuarios.txt", "escribir")
 
 	var wg sync.WaitGroup
 	wg.Add(1)
