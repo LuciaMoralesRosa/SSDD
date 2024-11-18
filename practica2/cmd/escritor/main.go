@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"practica2/com"
 	"practica2/ra"
@@ -15,14 +16,16 @@ const maxPeticiones = 100
 
 func main() {
 	com.Depuracion("Escritor - Lanzando al escritor")
-	//com.LimpiarTodosLosPuertos()
-	com.Depuracion("Escritor - Se han limpiado los puertos")
-	//id := com.ObtenerArgumentos()
-	id, _ := strconv.Atoi(os.Args[1])
+	if len(os.Args) < 2 {
+		fmt.Println("Numero de argumentos incorrecto")
+		os.Exit(1)
+	}
+	id, err := strconv.Atoi(os.Args[1])
+	com.CheckError(err)
 	com.Depuracion("Escritor - Se han obtenido los argumentos")
 
 	// Inicializacion de ra
-	ra := ra.New(id, "ms/usuarios.txt", "escribir")
+	ra := ra.New(id, "usuarios.txt", "escribir")
 
 	var wg sync.WaitGroup
 	wg.Add(1)
