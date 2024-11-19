@@ -60,6 +60,5 @@ func main() {
 	time.Sleep(5 * time.Second)
 	for {
 		fmt.Println("Depurando: voy a entrar al for")
-
 	}
 }
