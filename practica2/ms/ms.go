@@ -14,6 +14,8 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"practica2/com"
+	"strconv"
 )
 
 type Message interface{}
@@ -51,6 +53,7 @@ func parsePeers(path string) (lines []string) {
 // Pre: pid en {1..n}, el conjunto de procesos del SD
 // Post: envía el mensaje msg a pid
 func (ms *MessageSystem) Send(pid int, msg Message) {
+	//fmt.Println("Depurando: El tamaño de peers es " + strconv.Itoa(len(ms.peers)) + " y el valor del pid es " + strconv.Itoa(pid))
 	conn, err := net.Dial("tcp", ms.peers[pid-1])
 	checkError(err)
 	encoder := gob.NewEncoder(conn)
@@ -83,6 +86,7 @@ func Register(messageTypes []Message) {
 //	messageTypes es un slice con todos los tipos de mensajes que los procesos se pueden intercambiar a través de este ms
 func New(whoIam int, usersFile string, messageTypes []Message) (ms MessageSystem) {
 	ms.Me = whoIam
+	com.Depuracion("MS - New: me = " + strconv.Itoa(whoIam))
 	ms.peers = parsePeers(usersFile)
 	ms.mbox = make(chan Message, MAXMESSAGES)
 	ms.done = make(chan bool)

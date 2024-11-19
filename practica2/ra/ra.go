@@ -9,6 +9,7 @@
 package ra
 
 import (
+	"fmt"
 	"practica2/com"
 	"practica2/gf"
 	"practica2/ms"
@@ -68,9 +69,11 @@ func New(me int, usersFile string, op string) *RASharedDB {
 	com.Depuracion("RA - New: inicio")
 
 	messageTypes := []ms.Message{Request{}, Reply{}, Actualizar{}, RespuestaActualizar{}}
+	com.Depuracion("RA - New: estoy enviando a ms el valor me " + strconv.Itoa(me))
 	msgs := ms.New(me, usersFile, messageTypes)
 
 	yo := strconv.Itoa(me)
+	fmt.Println("RA - NEW: yo soy " + yo)
 
 	// Inicializacion de los relojes vectoriales
 	reloj1 := vclock.New()
@@ -86,6 +89,8 @@ func New(me int, usersFile string, op string) *RASharedDB {
 		make(chan bool), make(chan bool), sync.Mutex{}, make(chan Request),
 		make(chan Reply), make(chan RespuestaActualizar), op, fichero, yo}
 
+	com.Depuracion("RA - New: el valor ra.ms.me es " + strconv.Itoa(ra.ms.Me))
+
 	com.Depuracion("RA - New: lanzando goroutinas")
 	go recibirMensaje(&ra)
 	go manejoPeticiones(&ra)
@@ -94,6 +99,7 @@ func New(me int, usersFile string, op string) *RASharedDB {
 	return &ra
 }
 
+// REVISADO
 // Pre: Verdad
 // Post: Realiza  el  PreProtocol  para el  algoritmo de Ricart-Agrawala
 // Generalizado
@@ -102,7 +108,7 @@ func (ra *RASharedDB) PreProtocol() {
 	// TODO completar
 	ra.Mutex.Lock()
 
-	ra.ReqCS = true //
+	ra.ReqCS = true // Indico que quiero entrar a la seccion critica
 
 	// Incrementar numero de secuencia y actualizacion si es necesario
 	ra.OurSeqNum[ra.yo] = ra.HigSeqNum[ra.yo] + 1
@@ -114,6 +120,8 @@ func (ra *RASharedDB) PreProtocol() {
 
 	for i := 1; i <= nProcesos; i++ {
 		if i != ra.ms.Me {
+			com.Depuracion("RA - Preprotocol: Estoy en el if con i = " + strconv.Itoa(i) + " y yo soy " + strconv.Itoa(ra.ms.Me))
+
 			peticion := Request{
 				Pid:       ra.ms.Me,
 				Clock:     ra.OurSeqNum,
@@ -136,7 +144,7 @@ func (ra *RASharedDB) PostProtocol() {
 	com.Depuracion("RA - Posprotocol: inicio")
 	// TODO completar
 	ra.Mutex.Lock()
-	ra.ReqCS = false
+	ra.ReqCS = false // Indico que ya no quiero tener acceso a la seccion critica
 	ra.Mutex.Unlock()
 
 	for i := 1; i <= nProcesos; i++ {
@@ -159,6 +167,7 @@ func (ra *RASharedDB) Stop() {
 // Post: Devuelve true si el proceso con pid "yo" tiene prioridad sobre el
 // el proceso con pid "otro"
 func tengoPrioridad(reloj1 vclock.VClock, reloj2 vclock.VClock, yo int, otro int) bool {
+	com.Depuracion("Mi reloj (pid = " + strconv.Itoa(yo) + ") es: " + reloj1.ReturnVCString() + " \nEl otro (pid = " + strconv.Itoa(otro) + ") reloj es: " + reloj2.ReturnVCString())
 	com.Depuracion("RA - tengoPrioridad: viendo si tengo prioridad")
 	if reloj1.Compare(reloj2, vclock.Descendant) { // Si reloj1 es mas reciente
 		return true
@@ -168,6 +177,9 @@ func tengoPrioridad(reloj1 vclock.VClock, reloj2 vclock.VClock, yo int, otro int
 		return false
 	}
 }
+
+//prio := ra.OurSeqNum.Compare(clockSol, vclock.Descendant) || ((ra.OurSeqNum.Compare(clockSol, vclock.Equal) ||
+//ra.OurSeqNum.Compare(clockSol, vclock.Concurrent)) && procSol > me)
 
 func recibirMensaje(ra *RASharedDB) {
 	for {
@@ -252,7 +264,7 @@ func (ra *RASharedDB) EnviarActualizar(texto string) {
 	com.Depuracion("RA - EnviarActualizar: se va a enviar actualizar")
 
 	yo := ra.ms.Me
-	for i := 1; i < nProcesos; i++ {
+	for i := 1; i <= nProcesos; i++ {
 		if i != yo {
 			com.Depuracion("RA - EnviarActualizar: enviando actualizar a " + strconv.Itoa(i))
 			ra.ms.Send(i, Actualizar{yo, texto})
@@ -260,9 +272,12 @@ func (ra *RASharedDB) EnviarActualizar(texto string) {
 	}
 
 	respuestasEsperadas := nProcesos - 1
+	com.Depuracion("RA - EnviarActualizar: Respuestas esperadas = " + strconv.Itoa(respuestasEsperadas))
 	for respuestasEsperadas > 0 {
+		com.Depuracion("RA - EnviarActualizar: Esperando respuestas esperadas ")
 		<-ra.respuestaActualizar
 		respuestasEsperadas--
+		com.Depuracion("RA - EnviarActualizar: Se ha obtenido respuesta esperada. Quedan : " + strconv.Itoa(respuestasEsperadas))
 	}
 	com.Depuracion("RA - EnviarActualizar: se han recibido todas las respuestasActualizar")
 

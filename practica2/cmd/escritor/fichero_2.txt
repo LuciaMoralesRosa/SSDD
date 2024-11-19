@@ -1,0 +1,6 @@
+Soy 1 y esta es la vez numero 1 que escribo
+Soy 1 y esta es la vez numero 2 que escribo
+Soy 1 y esta es la vez numero 3 que escribo
+Soy 2 y esta es la vez numero 1 que escribo
+Soy 2 y esta es la vez numero 2 que escribo
+Soy 2 y esta es la vez numero 3 que escribo

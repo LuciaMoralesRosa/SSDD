@@ -18,6 +18,8 @@ import (
 	"os"
 	"sync"
 	"time"
+
+	"golang.org/x/exp/rand"
 )
 
 var primeraVez = true
@@ -35,6 +37,15 @@ func CheckError(err error) {
 		fmt.Fprintf(os.Stderr, "Fatal error: %s", err.Error())
 		os.Exit(1)
 	}
+}
+
+func ValorAleatorio() int {
+	min := 100
+	max := 400
+	// Inicializar la semilla con la hora actual
+	numeroRango := min + rand.Intn(max-min+1)
+	return numeroRango
+
 }
 
 func EstoyListo(id int, endpoint string) {
@@ -108,6 +119,7 @@ func Depuracion(textoDepuracion string) {
 	defer fichero.Close()
 
 	// Escribir el texto en el archivo
-	_, err = fichero.WriteString(textoDepuracion + "\n")
+	//_, err = fichero.WriteString(textoDepuracion + "\n")
+	fmt.Println(textoDepuracion)
 	CheckError(err)
 }
