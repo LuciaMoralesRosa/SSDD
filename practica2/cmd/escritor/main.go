@@ -14,6 +14,7 @@ import (
 // const puerto = ":31111"
 // const segundos = 5
 const maxPeticiones = 4
+const fichero = "usuarios.txt"
 
 func main() {
 	com.Depuracion("Escritor - Lanzando al escritor")
@@ -31,7 +32,7 @@ func main() {
 
 	// Inicializacion de ra
 	fmt.Println("Depurando: Estoy enviando el valor id " + strconv.Itoa(id))
-	ra := ra.New(id, "usuariosTest.txt", "Escribir")
+	ra := ra.New(id, fichero, "Escribir")
 
 	//var wg sync.WaitGroup
 	//wg.Add(1)
