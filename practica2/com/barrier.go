@@ -21,6 +21,15 @@ import (
 	"time"
 )
 
+// readEndpoints lee una lista de endpoints de un fichero, donde cada linea
+// representa un endpoint.
+//
+// Parametros:
+// - filename: Ruta hasta el fichero
+//
+// Return:
+// - Un slice con los endpoints leidos.
+// - Error si el fichero no puede ser leido.
 func readEndpoints(filename string) ([]string, error) {
 	file, err := os.Open(filename)
 	if err != nil {
@@ -42,7 +51,11 @@ func readEndpoints(filename string) ([]string, error) {
 	return endpoints, nil
 }
 
-func handleConnection(conn net.Conn, barrierChan chan<- bool, received *map[string]bool, mu *sync.Mutex, n int) {
+// Maneja una conexión TCP entrante para la sincronización de la barrera.
+// Registra el mensaje recibido en un mapa compartido y verifica si se cumple la
+// condición de la barrera.
+func handleConnection(conn net.Conn, barrierChan chan<- bool,
+	received *map[string]bool, mu *sync.Mutex, n int) {
 	defer conn.Close()
 	buf := make([]byte, 1024)
 	_, err := conn.Read(buf)
@@ -60,6 +73,9 @@ func handleConnection(conn net.Conn, barrierChan chan<- bool, received *map[stri
 	mu.Unlock()
 }
 
+// Configura una sincronización distribuida de barrera utilizando comunicación
+// TCP. Cada proceso se comunica con los demás para asegurarse de que todos han
+// alcanzado la barrera antes de continuar.
 func Barrera(endpointsFile string, lineNumber int) {
 	if lineNumber < 1 {
 		fmt.Println("Invalid line number")
@@ -108,7 +124,6 @@ func Barrera(endpointsFile string, lineNumber int) {
 			default:
 				conn, err := listener.Accept()
 				if err != nil {
-					//fmt.Println("Error accepting connection:", err)
 					continue
 				}
 				go handleConnection(conn, barrierChan, &receivedMap, &mu, n)
@@ -125,13 +140,11 @@ func Barrera(endpointsFile string, lineNumber int) {
 				for {
 					conn, err := net.Dial("tcp", ep)
 					if err != nil {
-						//fmt.Println("Error connecting to", ep, ":", err)
 						time.Sleep(1 * time.Second)
 						continue
 					}
 					_, err = conn.Write([]byte(strconv.Itoa(lineNumber)))
 					if err != nil {
-						//fmt.Println("Error sending message:", err)
 						conn.Close()
 						continue
 					}

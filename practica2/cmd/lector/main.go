@@ -1,5 +1,15 @@
 package main
 
+/*
+* AUTOR: Lucia Morales Rosa (816906) y Lizer Bernad Ferrando (779035)
+* ASIGNATURA: 30221 Sistemas Distribuidos del Grado en Ingeniería Informática
+*			Escuela de Ingeniería y Arquitectura - Universidad de Zaragoza
+* FECHA: octubre de 2024
+* FICHERO: main.go
+* DESCRIPCIÓN: Contiene la implementacion del lector para el algoritmo de
+	Ricart-Agrawala Generalizado
+*/
+
 import (
 	"fmt"
 	"math/rand"
@@ -10,16 +20,13 @@ import (
 	"time"
 )
 
-// const endpointBarrera = "192.168.3.1:31110"
-// const puerto = ":31112"
-// const segundos = 5
-const maxPeticiones = 8
+const maxPeticiones = 4
 const fichero = "usuarios.txt"
 
 func main() {
 	com.Depuracion("Lector - Lanzando al lector")
 	if len(os.Args) < 2 {
-		fmt.Println("Numero de argumentos incorrecto")
+		fmt.Println("Numero de argumentos incorrecto: main.go <numProceso>")
 		os.Exit(1)
 	}
 
@@ -31,12 +38,11 @@ func main() {
 	valorAleatorio := com.ValorAleatorio()
 
 	// Esperar a todos los procesos
-	com.Depuracion("Esperando en la barrera")
+	com.Depuracion("Lector - Esperando en la barrera")
 	com.Barrera(fichero, id)
-	com.Depuracion("He salido de la barrera")
+	com.Depuracion("Lector - He salido de la barrera")
 
 	// Inicializacion de ra
-	fmt.Println("Depurando: Estoy enviando el valor id " + strconv.Itoa(id))
 	ra := ra.New(id, fichero, "Leer")
 
 	time.Sleep(4 * time.Second)
@@ -44,16 +50,17 @@ func main() {
 	// Leer
 	for i := 1; i < maxPeticiones; i++ {
 		ra.PreProtocol()
-		fmt.Println("Depurando: Lector en SC")
+		com.Depuracion("Lector - Estoy en SC")
 		leido := ra.Fichero.Leer()
-		fmt.Println("Depurando - Leer: " + leido)
+		com.Depuracion("Lector - He leido el texto " + leido)
 		ra.PostProtocol()
-		fmt.Println("Depurando: Lector fuera de SC")
+		com.Depuracion("Lector - He salido de la seccion critica")
 		time.Sleep(time.Duration(valorAleatorio) * time.Millisecond)
 	}
 
 	time.Sleep(5 * time.Second)
-	fmt.Println("Depurando: voy a entrar al for")
+	fmt.Println("Lector - Final ejecucion, voy a entrar al for")
+	com.Depuracion("Lector - Final ejecucion, voy a entrar al for")
 	for {
 	}
 }

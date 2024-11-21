@@ -10,6 +10,7 @@ import (
 type Fichero struct {
 	nombreFichero string
 	Mutex         sync.Mutex
+	// Para asegurar que no se realicen varias operaciones concurrentes 
 }
 
 func CrearFichero(nombreFichero string) *Fichero {
@@ -51,6 +52,8 @@ func (fichero *Fichero) Escribir(texto string) {
 	fichero.Mutex.Lock()
 	f, err := os.OpenFile(fichero.nombreFichero, os.O_WRONLY|os.O_APPEND, 0666)
 	com.CheckError(err)
+
+	os.ReadFile()
 
 	defer f.Close()
 	_, err = f.WriteString(texto)

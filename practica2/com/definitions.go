@@ -1,3 +1,5 @@
+package com
+
 /*
 * AUTOR: Lucia Morales Rosa (816906) y Lizer Bernad Ferrando (779035)
 * Modificacion del fichero "defintions.go" proporcionado en la practica 1 de
@@ -9,7 +11,6 @@
 * DESCRIPCIÓN: contiene las definiciones funciones necesarias para la práctica 2
 * y su correcto despliegue
  */
-package com
 
 import (
 	"fmt"
@@ -18,13 +19,12 @@ import (
 	"golang.org/x/exp/rand"
 )
 
+// Variable para evaluar si es la primera vez en la ejecucion que se llama a
+// Depuracion para reescribir el fichero Depuracion.txt o crearlo
 var primeraVez = true
 
-type MensajeBarrera struct {
-	Id    int
-	Listo bool
-}
-
+// CheckError maneja errores críticos. Si err no es nulo, imprime el error en
+// stderr y termina el programa
 func CheckError(err error) {
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Fatal error: %s", err.Error())
@@ -32,6 +32,7 @@ func CheckError(err error) {
 	}
 }
 
+// ValorAleatorio genera un número entero aleatorio entre 100 y 400
 func ValorAleatorio() int {
 	min := 100
 	max := 400
@@ -41,6 +42,9 @@ func ValorAleatorio() int {
 
 }
 
+// Depuracion escribe el texto de depuración en un archivo llamado
+// "Depuracion.txt". Si es la primera ejecución, verifica y elimina el archivo
+// si ya existe.
 func Depuracion(textoDepuracion string) {
 	if primeraVez {
 		// Comprobar si el archivo existe
@@ -54,15 +58,17 @@ func Depuracion(textoDepuracion string) {
 		primeraVez = false
 	}
 
-	// Abrir S(o crear) el archivo en modo append, con permisos de escritura y lectura
-	fichero, err := os.OpenFile("Depuracion.txt", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	// Abrir el archivo en modo append, con permisos de escritura y lectura
+	f, err := os.OpenFile("Depuracion.txt", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	CheckError(err)
 
 	// Asegurarse de cerrar el archivo al salir de la función
-	defer fichero.Close()
+	defer f.Close()
 
-	// Escribir el texto en el archivo
-	_, err = fichero.WriteString(textoDepuracion + "\n")
-	//fmt.Println(textoDepuracion)
+	// Escribir el texto de depuracion en el archivo
+	_, err = f.WriteString(textoDepuracion + "\n")
 	CheckError(err)
+
+	// Escribir el texto de depuracion por pantalla
+	//fmt.Println(textoDepuracion)
 }
