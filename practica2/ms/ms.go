@@ -14,8 +14,6 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"practica2/com"
-	"strconv"
 )
 
 type Message interface{}
@@ -86,7 +84,6 @@ func Register(messageTypes []Message) {
 //	messageTypes es un slice con todos los tipos de mensajes que los procesos se pueden intercambiar a través de este ms
 func New(whoIam int, usersFile string, messageTypes []Message) (ms MessageSystem) {
 	ms.Me = whoIam
-	com.Depuracion("MS - New: me = " + strconv.Itoa(whoIam))
 	ms.peers = parsePeers(usersFile)
 	ms.mbox = make(chan Message, MAXMESSAGES)
 	ms.done = make(chan bool)

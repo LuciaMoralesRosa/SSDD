@@ -54,7 +54,7 @@ func main() {
 			strconv.Itoa(i) + ".\n"
 		ra.Fichero.Escribir(textoAEscribir)
 		fmt.Println("Escritor - He escrito")
-		ra.EnviarActualizar(textoAEscribir)
+		ra.AvisarActualizar(textoAEscribir)
 		fmt.Println("Escritor - He enviado Actualizar")
 		ra.PostProtocol()
 		fmt.Println("Escritor - He salido de SC")
