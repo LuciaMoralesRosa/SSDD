@@ -28,22 +28,18 @@ func main() {
 
 	rand.Seed(time.Now().UnixNano())
 	valorAleatorio := com.ValorAleatorio()
-	//valorAleatorio := 3 * time.Second
+
+	// Esperar a todos los procesos
+	com.Depuracion("Esperando en la barrera")
+	com.Barrera(fichero, id)
+	com.Depuracion("He salido de la barrera")
 
 	// Inicializacion de ra
 	fmt.Println("Depurando: Estoy enviando el valor id " + strconv.Itoa(id))
 	ra := ra.New(id, fichero, "Escribir")
 
-	//var wg sync.WaitGroup
-	//wg.Add(1)
-	//go com.Esperar(&wg, puerto)
+	time.Sleep(4 * time.Second)
 
-	//com.EstoyListo(id, endpointBarrera)
-	//wg.Wait() // Esperar a que todos esten listos
-
-	//go com.Final(5)
-
-	time.Sleep(6 * time.Second)
 	// Escribir
 	for i := 1; i < maxPeticiones; i++ {
 		ra.PreProtocol()

@@ -22,7 +22,6 @@ func main() {
 		fmt.Println("Numero de argumentos incorrecto")
 		os.Exit(1)
 	}
-	com.Depuracion("Lector - Se han limpiado los puertos")
 
 	id, err := strconv.Atoi(os.Args[1])
 	com.CheckError(err)
@@ -31,20 +30,16 @@ func main() {
 	rand.Seed(time.Now().UnixNano())
 	valorAleatorio := com.ValorAleatorio()
 
+	// Esperar a todos los procesos
+	com.Depuracion("Esperando en la barrera")
+	com.Barrera(fichero, id)
+	com.Depuracion("He salido de la barrera")
+
 	// Inicializacion de ra
 	fmt.Println("Depurando: Estoy enviando el valor id " + strconv.Itoa(id))
 	ra := ra.New(id, fichero, "Leer")
 
-	//var wg sync.WaitGroup
-	//wg.Add(1)
-	//go com.Esperar(&wg, puerto)
-
-	//com.EstoyListo(id, endpointBarrera)
-	//wg.Wait() // Esperar a que todos esten listos
-
-	//go com.Final(5)
-
-	time.Sleep(6 * time.Second)
+	time.Sleep(4 * time.Second)
 
 	// Leer
 	for i := 1; i < maxPeticiones; i++ {
@@ -58,7 +53,7 @@ func main() {
 	}
 
 	time.Sleep(5 * time.Second)
+	fmt.Println("Depurando: voy a entrar al for")
 	for {
-		fmt.Println("Depurando: voy a entrar al for")
 	}
 }

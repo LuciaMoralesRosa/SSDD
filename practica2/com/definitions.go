@@ -12,20 +12,13 @@
 package com
 
 import (
-	"encoding/gob"
 	"fmt"
-	"net"
 	"os"
-	"sync"
-	"time"
 
 	"golang.org/x/exp/rand"
 )
 
 var primeraVez = true
-
-const puertoInicial = 31110
-const puertoFinal = 31119
 
 type MensajeBarrera struct {
 	Id    int
@@ -46,56 +39,6 @@ func ValorAleatorio() int {
 	numeroRango := min + rand.Intn(max-min+1)
 	return numeroRango
 
-}
-
-func EstoyListo(id int, endpoint string) {
-	Depuracion("Definitions - EstoyListo: inicio")
-	conn, err := net.Dial("tcp", endpoint)
-	CheckError(err)
-	defer conn.Close()
-
-	mensaje := MensajeBarrera{
-		Id:    id,
-		Listo: true,
-	}
-	encoder := gob.NewEncoder(conn)
-	err = encoder.Encode(mensaje)
-	CheckError(err)
-
-	Depuracion("Definitions - EstoyListo: final")
-}
-
-func Esperar(wg *sync.WaitGroup, endpoint string) {
-	Depuracion("Definitions - Esperar: inicio")
-
-	defer wg.Done()
-	listener, err := net.Listen("tcp", endpoint)
-	CheckError(err)
-	defer listener.Close()
-
-	for {
-		conn, err := listener.Accept()
-		CheckError(err)
-		defer conn.Close()
-
-		var mensaje MensajeBarrera
-		decoder := gob.NewDecoder(conn)
-		err = decoder.Decode(&mensaje)
-		CheckError(err)
-
-		if !mensaje.Listo {
-			Depuracion("Definitions - EstoyListo: nodo trabajando")
-			break
-		}
-	}
-	Depuracion("Definitions - EstoyListo: final")
-}
-
-func Final(segundos time.Duration) {
-	Depuracion("Definitions - Final: enviando final")
-	temporizador := time.NewTimer(segundos * time.Second)
-	<-temporizador.C
-	os.Exit(0)
 }
 
 func Depuracion(textoDepuracion string) {
@@ -119,7 +62,7 @@ func Depuracion(textoDepuracion string) {
 	defer fichero.Close()
 
 	// Escribir el texto en el archivo
-	//_, err = fichero.WriteString(textoDepuracion + "\n")
-	fmt.Println(textoDepuracion)
+	_, err = fichero.WriteString(textoDepuracion + "\n")
+	//fmt.Println(textoDepuracion)
 	CheckError(err)
 }
