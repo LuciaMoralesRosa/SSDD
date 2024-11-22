@@ -25,18 +25,18 @@ type Fichero struct {
 // CrearFichero crea un nuevo archivo con el nombre especificado y devuelve un
 // puntero a un objeto Fichero.
 func CrearFichero(nombreFichero string) *Fichero {
-	com.Depuracion("GestorFichero - CrearFichero: Estoy creando el fichero para leer o escribir", -1)
+	com.Depuracion("GestorFichero - CrearFichero: Estoy creando el fichero para leer o escribir")
 	_, err := os.Create(nombreFichero)
 	com.CheckError(err)
 	fichero := Fichero{nombreFichero: nombreFichero, Mutex: sync.Mutex{}}
-	com.Depuracion("GestorFichero - CrearFichero: El fichero se ha creado correctamente", -1)
+	com.Depuracion("GestorFichero - CrearFichero: El fichero se ha creado correctamente")
 	return &fichero
 }
 
 // Leer lee el contenido del archivo gestionado por el objeto Fichero y lo
 // devuelve como un string.
 func (fichero *Fichero) Leer() string {
-	com.Depuracion("GestorFichero - Leer: Se va a leer de fichero", -1)
+	com.Depuracion("GestorFichero - Leer: Se va a leer de fichero")
 	fichero.Mutex.Lock()
 
 	// Leer el contenido del fichero
@@ -46,7 +46,7 @@ func (fichero *Fichero) Leer() string {
 
 	// Convertir el contenido del fichero a string
 	contenidoFichero := string(contenidoBytes)
-	com.Depuracion("GestorFichero - Leer: Se ha leido el texto: "+contenidoFichero, -1)
+	com.Depuracion("GestorFichero - Leer: Se ha leido el texto: "+contenidoFichero)
 
 	return contenidoFichero
 }
@@ -54,7 +54,7 @@ func (fichero *Fichero) Leer() string {
 // Escribir escribe el texto proporcionado al final del archivo gestionado por
 // el objeto Fichero.
 func (fichero *Fichero) Escribir(texto string) {
-	com.Depuracion("GestorFichero - Escribir: Se va a escribir", -1)
+	com.Depuracion("GestorFichero - Escribir: Se va a escribir")
 	fichero.Mutex.Lock()
 
 	// Abrir fichero con permisos y append para escribir al final
@@ -67,5 +67,5 @@ func (fichero *Fichero) Escribir(texto string) {
 	com.CheckError(err)
 
 	fichero.Mutex.Unlock()
-	com.Depuracion("GestorFichero - Escribir: Se ha escrito correctamente", -1)
+	com.Depuracion("GestorFichero - Escribir: Se ha escrito correctamente")
 }

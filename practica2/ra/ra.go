@@ -63,7 +63,7 @@ var matrizExclusion = [2][2]bool{
 
 // Inicializa el RA
 func New(me int, usersFile string, op string) *RASharedDB {
-	com.Depuracion("RA - New: inicio", -1)
+	com.Depuracion("RA - New: inicio")
 
 	messageTypes := []ms.Message{Request{}, Reply{}, ActualizarFichero{},
 		AckActualizar{}}
@@ -86,7 +86,7 @@ func New(me int, usersFile string, op string) *RASharedDB {
 		make(chan Reply), make(chan AckActualizar), op, fichero, yo}
 
 	// Lanzar goroutinas
-	com.Depuracion("RA - New: lanzando goroutinas", -1)
+	com.Depuracion("RA - New: lanzando goroutinas")
 	go recibirMensaje(&ra)
 	go manejoPeticionesSC(&ra)
 	go manejoRespuestas(&ra)
@@ -97,7 +97,7 @@ func New(me int, usersFile string, op string) *RASharedDB {
 // Pre: Verdad
 // Post: Realiza el PreProtocol del algoritmo de Ricart-Agrawala Generalizado
 func (ra *RASharedDB) PreProtocol() {
-	com.Depuracion("RA - Preprotocol: inicio", -1)
+	com.Depuracion("RA - Preprotocol: inicio")
 
 	// Mutex para evitar condiciones de carrera con otras goroutinas
 	ra.Mutex.Lock()
@@ -121,23 +121,23 @@ func (ra *RASharedDB) PreProtocol() {
 				Clock:     ra.OurSeqNum,
 				Operacion: ra.Operacion,
 			}
-			com.Depuracion("RA - Preprotocol: Enviando peticion a "+
-				strconv.Itoa(i), -1)
+			com.Depuracion("RA - Preprotocol: Enviando peticion a " +
+				strconv.Itoa(i))
 			ra.ms.Send(i, peticion)
 		}
 	}
 
 	// Esperamos a que llegue un true, ie, obtener todas las respuestas
 	<-ra.chrep
-	com.Depuracion("RA - Preprotocol: final", -1)
-	com.Depuracion("Acceso a seccion critica con reloj = "+ra.OurSeqNum.ReturnVCString(), ra.ms.Me)
+	com.Depuracion("RA - Preprotocol: final")
+	com.Depuracion("Acceso a seccion critica con reloj = " + ra.OurSeqNum.ReturnVCString())
 }
 
 // Pre: Verdad
 // Post: Realiza  el  PostProtocol  para el  algoritmo de Ricart-Agrawala
 // Generalizado
 func (ra *RASharedDB) PostProtocol() {
-	com.Depuracion("RA - Posprotocol: inicio", -1)
+	com.Depuracion("RA - Posprotocol: inicio")
 
 	// Mutex para evitar condiciones de carrera con otras goroutinas
 	ra.Mutex.Lock()
@@ -147,7 +147,7 @@ func (ra *RASharedDB) PostProtocol() {
 
 	// Notificar liberacion de la SC
 	for i := 1; i <= nProcesos; i++ {
-		com.Depuracion("RA - Posprotocol: avisando de liberacion de SC", -1)
+		com.Depuracion("RA - Posprotocol: avisando de liberacion de SC")
 		if ra.RepDefd[i-1] {
 			ra.Mutex.Lock()
 			ra.RepDefd[i-1] = false // Se indica que se responde
@@ -190,19 +190,19 @@ func recibirMensaje(ra *RASharedDB) {
 		mensaje := ra.ms.Receive()
 		switch tipoMensaje := mensaje.(type) {
 		case Request:
-			com.Depuracion("RA - recibirMensaje: Peticion recibida", -1)
+			com.Depuracion("RA - recibirMensaje: Peticion recibida")
 			ra.peticion <- tipoMensaje
 		case Reply:
-			com.Depuracion("RA - recibirMensaje: Respuesta recibida", -1)
+			com.Depuracion("RA - recibirMensaje: Respuesta recibida")
 			ra.respuesta <- tipoMensaje
 		case ActualizarFichero:
-			com.Depuracion("RA - recibirMensaje: Actualizar recibido", -1)
+			com.Depuracion("RA - recibirMensaje: Actualizar recibido")
 			ra.Fichero.Escribir(tipoMensaje.Texto)
-			com.Depuracion("RA - recibirMensaje: Texto escrito en fichero", -1)
+			com.Depuracion("RA - recibirMensaje: Texto escrito en fichero")
 			ra.ms.Send(tipoMensaje.Pid, AckActualizar{})
-			com.Depuracion("RA - recibirMensaje: Mensaje de actualizacion enviado", -1)
+			com.Depuracion("RA - recibirMensaje: Mensaje de actualizacion enviado")
 		case AckActualizar:
-			com.Depuracion("RA - recibirMensaje: Ack recibido", -1)
+			com.Depuracion("RA - recibirMensaje: Ack recibido")
 			ra.ackActualizar <- tipoMensaje
 		}
 	}
@@ -216,7 +216,7 @@ func manejoPeticionesSC(ra *RASharedDB) {
 	for {
 		// Obtener la peticion
 		peticion := <-ra.peticion
-		com.Depuracion("RA - manejoPeticiones: se ha recibido peticion", -1)
+		com.Depuracion("RA - manejoPeticiones: se ha recibido peticion")
 		peticionReloj := peticion.Clock
 
 		// Actualizo el reloj
@@ -224,6 +224,8 @@ func manejoPeticionesSC(ra *RASharedDB) {
 		ra.HigSeqNum[ra.yo] = calcularMax(ra.HigSeqNum[ra.yo],
 			peticionReloj[strconv.Itoa(peticion.Pid)])
 		ra.HigSeqNum.Merge(peticionReloj) // Se añade el nuevo reloj de la peticion
+
+		com.Depuracion("Actualizacion de reloj \n" + ra.OurSeqNum.ReturnVCString())
 
 		// Veo si pospongo la peticion
 		soyEscritor := boolToInt(ra.Operacion == "Escribir")
@@ -234,12 +236,12 @@ func manejoPeticionesSC(ra *RASharedDB) {
 		ra.Mutex.Unlock()
 
 		if posponer {
-			com.Depuracion("RA - manejoPeticiones: Peticion pospuesta", -1)
+			com.Depuracion("RA - manejoPeticiones: Peticion pospuesta")
 			ra.RepDefd[peticion.Pid-1] = true // Posponemos
 		} else {
-			com.Depuracion("RA - manejoPeticiones: Peticion no pospuesta", -1)
+			com.Depuracion("RA - manejoPeticiones: Peticion no pospuesta")
 			ra.Mutex.Lock()
-			com.Depuracion("RA - manejoPeticiones: Enviar mensaje peticion", -1)
+			com.Depuracion("RA - manejoPeticiones: Enviar mensaje peticion")
 			ra.ms.Send(peticion.Pid, Reply{}) // Hacemos peticion
 			ra.Mutex.Unlock()
 		}
@@ -252,10 +254,10 @@ func manejoPeticionesSC(ra *RASharedDB) {
 func manejoRespuestas(ra *RASharedDB) {
 	for {
 		<-ra.respuesta // Cuando llega una respuesta
-		com.Depuracion("RA - manejoRespuestas: se ha recibido respuesta", -1)
+		com.Depuracion("RA - manejoRespuestas: se ha recibido respuesta")
 		ra.OutRepCnt-- // Decrementar el numero de respuestas esperadas
 		if ra.OutRepCnt == 0 {
-			com.Depuracion("RA - manejoRespuestas: Todas las respuestas recibidas", -1)
+			com.Depuracion("RA - manejoRespuestas: Todas las respuestas recibidas")
 			ra.chrep <- true // Notificar al canal
 		}
 	}
@@ -265,29 +267,29 @@ func manejoRespuestas(ra *RASharedDB) {
 // Post: Envia un mensaje de actualizacion a los procesos y espera nProcesos-1
 // respuestas
 func (ra *RASharedDB) AvisarActualizar(texto string) {
-	com.Depuracion("RA - AvisarActualizar: se va a enviar actualizar", -1)
+	com.Depuracion("RA - AvisarActualizar: se va a enviar actualizar")
 
 	// Notificar a todos los procesos de que deben actualizar su fichero
 	yo := ra.ms.Me
 	for i := 1; i <= nProcesos; i++ {
 		if i != yo {
-			com.Depuracion("RA - AvisarActualizar: enviando actualizar a "+
-				strconv.Itoa(i), -1)
+			com.Depuracion("RA - AvisarActualizar: enviando actualizar a " +
+				strconv.Itoa(i))
 			ra.ms.Send(i, ActualizarFichero{yo, texto})
 		}
 	}
 
 	// Esperar a que todos confirmen que han actualizado su fichero
 	respuestasEsperadas := nProcesos - 1
-	com.Depuracion("RA - AvisarActualizar: Respuestas esperadas de ack = "+
-		strconv.Itoa(respuestasEsperadas), -1)
+	com.Depuracion("RA - AvisarActualizar: Respuestas esperadas de ack = " +
+		strconv.Itoa(respuestasEsperadas))
 	for respuestasEsperadas > 0 {
 		<-ra.ackActualizar
 		respuestasEsperadas--
 	}
 
-	com.Depuracion("RA - AvisarActualizar: se han recibido todos los acks -> "+
-		"todos los ficheros han sido actualizados", -1)
+	com.Depuracion("RA - AvisarActualizar: se han recibido todos los acks -> " +
+		"todos los ficheros han sido actualizados")
 }
 
 // Calcula el maximo de los dos parametros
