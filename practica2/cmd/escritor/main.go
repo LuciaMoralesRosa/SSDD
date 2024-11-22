@@ -24,22 +24,22 @@ const maxPeticiones = 4
 const fichero = "usuarios.txt"
 
 func main() {
-	com.Depuracion("Escritor - Lanzando al escritor")
+	com.Depuracion("Escritor - Lanzando al escritor", -1)
 	if len(os.Args) < 2 {
 		fmt.Println("Numero de argumentos incorrecto: main.go <numProceso>")
 		os.Exit(1)
 	}
 	id, err := strconv.Atoi(os.Args[1])
 	com.CheckError(err)
-	com.Depuracion("Escritor - Se han obtenido los argumentos")
+	com.Depuracion("Escritor - Se han obtenido los argumentos", -1)
 
 	rand.Seed(time.Now().UnixNano())
 	valorAleatorio := com.ValorAleatorio()
 
 	// Esperar a todos los procesos
-	com.Depuracion("Escritor - Esperando en la barrera")
+	com.Depuracion("Escritor - Esperando en la barrera", -1)
 	com.Barrera(fichero, id)
-	com.Depuracion("Escritor - He salido de la barrera")
+	com.Depuracion("Escritor - He salido de la barrera", -1)
 
 	// Inicializacion de ra
 	ra := ra.New(id, fichero, "Escribir")
@@ -49,7 +49,7 @@ func main() {
 	// Escribir
 	for i := 1; i < maxPeticiones; i++ {
 		ra.PreProtocol()
-		com.Depuracion("Escritor - Estoy en SC")
+		com.Depuracion("Escritor - Estoy en SC", -1)
 		textoAEscribir := "Soy " + strconv.Itoa(id) + ", escritura numero " +
 			strconv.Itoa(i) + ".\n"
 		ra.Fichero.Escribir(textoAEscribir)
@@ -62,7 +62,7 @@ func main() {
 	}
 
 	fmt.Println("Escritor - Final ejecucion, voy a entrar al for")
-	com.Depuracion("Escritor - Final ejecucion, voy a entrar al for")
+	com.Depuracion("Escritor - Final ejecucion, voy a entrar al for", -1)
 	for {
 	}
 

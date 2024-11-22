@@ -14,7 +14,9 @@ package com
 
 import (
 	"fmt"
+	"log"
 	"os"
+	"strconv"
 
 	"golang.org/x/exp/rand"
 )
@@ -22,6 +24,8 @@ import (
 // Variable para evaluar si es la primera vez en la ejecucion que se llama a
 // Depuracion para reescribir el fichero Depuracion.txt o crearlo
 var primeraVez = true
+var primeraVezLog = true
+var openLogfile *os.File
 
 // CheckError maneja errores críticos. Si err no es nulo, imprime el error en
 // stderr y termina el programa
@@ -42,10 +46,31 @@ func ValorAleatorio() int {
 
 }
 
+func llamadaLog(texto string, id int) {
+	nombreFichero := "log_" + strconv.Itoa(id) + ".log"
+	if primeraVez {
+		// Comprobar si el archivo existe
+		if _, err := os.Stat(nombreFichero); os.IsNotExist(err) {
+			fmt.Println("El archivo no existe.")
+		} else {
+			// Intentar borrar el archivo
+			err := os.Remove(nombreFichero)
+			CheckError(err)
+		}
+		primeraVezLog = false
+		openLogfile, err := os.OpenFile(nombreFichero, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
+		CheckError(err)
+		defer openLogfile.Close()
+		log.SetFlags(log.Lshortfile | log.Lmicroseconds)
+		log.SetOutput(openLogfile)
+	}
+	log.Println(texto)
+}
+
 // Depuracion escribe el texto de depuración en un archivo llamado
 // "Depuracion.txt". Si es la primera ejecución, verifica y elimina el archivo
 // si ya existe.
-func Depuracion(textoDepuracion string) {
+func Depuracion(textoDepuracion string, id int) {
 	if primeraVez {
 		// Comprobar si el archivo existe
 		if _, err := os.Stat("Depuracion.txt"); os.IsNotExist(err) {
@@ -69,6 +94,9 @@ func Depuracion(textoDepuracion string) {
 	_, err = f.WriteString(textoDepuracion + "\n")
 	CheckError(err)
 
+	if id != -1 { // Si es -1 no es un ra
+		llamadaLog(textoDepuracion, id)
+	}
 	// Escribir el texto de depuracion por pantalla
 	//fmt.Println(textoDepuracion)
 }
