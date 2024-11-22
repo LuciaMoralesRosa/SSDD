@@ -48,7 +48,7 @@ func ValorAleatorio() int {
 
 func llamadaLog(texto string, id int) {
 	nombreFichero := "log_" + strconv.Itoa(id) + ".log"
-	if primeraVez {
+	if primeraVezLog {
 		// Comprobar si el archivo existe
 		if _, err := os.Stat(nombreFichero); os.IsNotExist(err) {
 			fmt.Println("El archivo no existe.")
@@ -58,12 +58,12 @@ func llamadaLog(texto string, id int) {
 			CheckError(err)
 		}
 		primeraVezLog = false
-		openLogfile, err := os.OpenFile(nombreFichero, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
-		CheckError(err)
-		defer openLogfile.Close()
-		log.SetFlags(log.Lshortfile | log.Lmicroseconds)
-		log.SetOutput(openLogfile)
 	}
+	openLogfile, err := os.OpenFile(nombreFichero, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
+	CheckError(err)
+	defer openLogfile.Close()
+	log.SetFlags(log.Lshortfile | log.Lmicroseconds)
+	log.SetOutput(openLogfile)
 	log.Println(texto)
 }
 
