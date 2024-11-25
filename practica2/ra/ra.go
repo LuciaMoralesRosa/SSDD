@@ -4,7 +4,7 @@
 * ASIGNATURA: 30221 Sistemas Distribuidos del Grado en Ingeniería Informática
 *			Escuela de Ingeniería y Arquitectura - Universidad de Zaragoza
 * FECHA: octubre de 2024
-* FICHERO: ricart-agrawala.go
+* FICHERO: ra.go
 * DESCRIPCIÓN: Implementación del algoritmo de Ricart-Agrawala Generalizado en Go
  */
 package ra

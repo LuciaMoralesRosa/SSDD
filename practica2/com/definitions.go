@@ -8,8 +8,7 @@ package com
 *			Escuela de Ingeniería y Arquitectura - Universidad de Zaragoza
 * FECHA: octubre de 2024
 * FICHERO: definitions.go
-* DESCRIPCIÓN: contiene las definiciones funciones necesarias para la práctica 2
-* y su correcto despliegue
+* DESCRIPCIÓN: contiene las funciones auxiliares necesarias para la práctica 2
  */
 
 import (

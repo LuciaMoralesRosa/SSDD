@@ -2,7 +2,7 @@ package com
 
 /*
 * AUTOR: Rafael Tolosana Calasanz y Unai Arronategui
-		 Lucia Morales Rosa y Lizer Bernad Ferrando
+		 Lucia Morales Rosa (816906) y Lizer Bernad Ferrando (779035)
 * ASIGNATURA: 30221 Sistemas Distribuidos del Grado en Ingeniería Informática
 *			Escuela de Ingeniería y Arquitectura - Universidad de Zaragoza
 * FECHA: octubre de 2024
