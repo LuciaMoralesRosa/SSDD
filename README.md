@@ -5,6 +5,8 @@
  
  Copiar carpeta en central:
  scp -r Practica1_G26 a816906@central.cps.unizar.es:~/Practicas/SSDD
+ scp -r practica32 a816906@central.cps.unizar.es:~/Practicas/SSDD
+ scp -r practica3 a816906@central.cps.unizar.es:~/Practicas/SSDD
 
  Copiar archivos de central a las maquinas:
  
