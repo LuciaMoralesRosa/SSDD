@@ -2,9 +2,9 @@ package testintegracionraft1
 
 import (
 	"fmt"
-	"raft/internal/comun/check"
 	"os"
 	"path/filepath"
+	"raft/internal/comun/check"
 	"strconv"
 	"testing"
 	"time"
@@ -20,7 +20,7 @@ go run main.go 0 192.168.3.2:31110 192.168.3.3:31111 192.168.3.4:31112
 go run main.go 1 192.168.3.2:31110 192.168.3.3:31111 192.168.3.4:31112
 go run main.go 2 192.168.3.2:31110 192.168.3.3:31111 192.168.3.4:31112
 
-Ejecucion de las pruebas en otras maquinas porque 192.168.3.1 y 192.168.3.2 estaban caidas
+Ejecucion de pruebas en otras maquinas por error en 192.168.3.1 y 192.168.3.2
 go run main.go 0 192.168.3.4:31110 192.168.3.6:31111 192.168.3.7:31112
 go run main.go 1 192.168.3.4:31110 192.168.3.6:31111 192.168.3.7:31112
 go run main.go 2 192.168.3.4:31110 192.168.3.6:31111 192.168.3.7:31112
@@ -33,7 +33,7 @@ const (
 	//MAQUINA2 = "192.168.3.3"
 	//MAQUINA3 = "192.168.3.4"
 
-	// Ejecucion especial en maquinas porque 192.168.3.1 y 192.168.3.2 estaban caidas
+	// Ejecucion especial en maquinas por error en 192.168.3.1 y 192.168.3.2
 	MAQUINA1 = "192.168.3.4"
 	MAQUINA2 = "192.168.3.6"
 	MAQUINA3 = "192.168.3.7"
@@ -106,6 +106,7 @@ func TestPrimerasPruebas(t *testing.T) { // (m *testing.M) {
 	t.Run("T4:tresOperacionesComprometidasEstable",
 		func(t *testing.T) { cfg.tresOperacionesComprometidasEstable(t) })
 }
+
 /*
 // TEST primer rango
 func TestAcuerdosConFallos(t *testing.T) { // (m *testing.M) {
@@ -213,7 +214,7 @@ func (cfg *configDespliegue) elegirPrimerLiderTest2(t *testing.T) {
 	fmt.Printf("Probando lider en curso\n")
 	lider := cfg.pruebaUnLider(numeroNodos)
 	fmt.Printf("El lider es el nodo %d\n", lider)
-	
+
 	// Parar réplicas alamcenamiento en remoto
 	cfg.stopDistributedProcesses() // Parametros
 	fmt.Println(".............", t.Name(), "Superado")
@@ -233,7 +234,7 @@ func (cfg *configDespliegue) falloAnteriorElegirNuevoLiderTest3(t *testing.T) {
 	cfg.pararLider(lider)
 	fmt.Printf("Se ha parado el nodo %d\n", lider)
 
-	cfg. activarNodosDesconectados()
+	cfg.activarNodosDesconectados()
 	fmt.Printf("Comprobar nuevo lider\n")
 	nuevoLider := cfg.pruebaUnLider(numeroNodos)
 	fmt.Printf("El lider es el nodo %d\n", nuevoLider)
@@ -374,7 +375,6 @@ func (cfg *configDespliegue) startDistributedProcesses() {
 	time.Sleep(5000 * time.Millisecond)
 }
 
-
 func (cfg *configDespliegue) stopDistributedProcesses() {
 	var reply raft.Vacio
 
@@ -390,21 +390,24 @@ func (cfg *configDespliegue) comprobarEstadoRemoto(idNodoDeseado int,
 	mandatoDeseado int, esLiderDeseado bool, IdLiderDeseado int) {
 	idNodo, mandato, esLider, idLider := cfg.obtenerEstadoRemoto(idNodoDeseado)
 
-	cfg.t.Log("Params: ", idNodoDeseado, mandatoDeseado, esLiderDeseado, IdLiderDeseado, "\n")
+	cfg.t.Log("Params: ", idNodoDeseado, mandatoDeseado, esLiderDeseado,
+		IdLiderDeseado, "\n")
 	cfg.t.Log("Estado replica 0: ", idNodo, mandato, esLider, idLider, "\n")
 
 	if idNodo != idNodoDeseado || mandato != mandatoDeseado ||
-	esLider != esLiderDeseado || idLider != IdLiderDeseado {
+		esLider != esLiderDeseado || idLider != IdLiderDeseado {
 		cfg.t.Fatalf("Estado incorrecto en replica %d en subtest %s",
 			idNodoDeseado, cfg.t.Name())
 	}
 
 }
 
-func (cfg *configDespliegue) comprobarOperacion(lider int, log int, operacion string, clave string, valor string) {
-	indice, _,_, idLider, _ := cfg.someterOperacion(lider, operacion, clave, valor)
+func (cfg *configDespliegue) comprobarOperacion(lider int, log int,
+	operacion string, c string, v string) {
+	indice, _, _, idLider, _ := cfg.someterOperacion(lider, operacion, c, v)
 	if indice != log || idLider != lider {
-		cfg.t.Fatalf("Operacion no sometida correctamente en indice %d en subtest %s", log, cfg.t.Name())
+		cfg.t.Fatalf("Operacion no sometida correctamente en indice %d en "+
+			"subtest %s", log, cfg.t.Name())
 	}
 }
 
@@ -420,12 +423,12 @@ func (cfg *configDespliegue) activarNodosDesconectados() {
 	time.Sleep(10000 * time.Millisecond)
 }
 
-
 func (cfg *configDespliegue) pararLider(indiceLider int) {
 	var reply raft.Vacio
 	for i, endPoint := range cfg.nodosRaft {
 		if i == indiceLider {
-			err := endPoint.CallTimeout("NodoRaft.ParaNodo", raft.Vacio{}, &reply, 10*time.Millisecond)
+			err := endPoint.CallTimeout("NodoRaft.ParaNodo", raft.Vacio{},
+				&reply, 10*time.Millisecond)
 			check.CheckError(err, "Error en llamada RPC Para nodo")
 			cfg.conectados[i] = false
 		}
@@ -434,13 +437,12 @@ func (cfg *configDespliegue) pararLider(indiceLider int) {
 
 // Se envía una operación al nodo líder para que este inicie el proceso para
 // conseguir comprometerla
-func (cfg *configDespliegue) someterOperacion(indiceLider int, operacion string, clave string,
-	valor string) (int, int, bool, int, string) {
+func (cfg *configDespliegue) someterOperacion(indiceLider int, operacion string,
+	clave string, valor string) (int, int, bool, int, string) {
 	var reply raft.ResultadoRemoto
-	err := cfg.nodosRaft[indiceLider].CallTimeout("NodoRaft.SometerOperacionRaft", raft.TipoOperacion{operacion, clave,	valor}, &reply, 50*time.Millisecond)
+	err := cfg.nodosRaft[indiceLider].CallTimeout("NodoRaft.SometerOperacionRaft",
+		raft.TipoOperacion{operacion, clave, valor}, &reply, 50*time.Millisecond)
 	check.CheckError(err, "Error en llamada RPC SometerOperacionRaft")
-	return reply.IndiceRegistro, reply.Mandato, reply.EsLider, reply.IdLider, reply.ValorADevolver
-}	
-
-
-
+	return reply.IndiceRegistro, reply.Mandato, reply.EsLider, reply.IdLider,
+		reply.ValorADevolver
+}
