@@ -463,7 +463,7 @@ func (nr *NodoRaft) AppendEntries(args *ArgAppendEntries,
 		}
 	} else {
 		// Manejo de operacion
-		manejarOperacion(args, results)
+		nr.manejarOperacion(args, results)
 	}
 	return nil
 }
