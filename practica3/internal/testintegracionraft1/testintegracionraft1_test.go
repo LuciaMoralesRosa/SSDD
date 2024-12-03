@@ -193,7 +193,7 @@ func (cfg *configDespliegue) soloArranqueYparadaTest1(t *testing.T) {
 	//time.Sleep(2500 * time.Millisecond)
 
 	// Comprobar estados replicas en todos los nodos
-	for int i:= 0; i < numeroNodos; i++ {
+	for i:= 0; i < numeroNodos; i++ {
 		cfg.comprobarEstadoRemoto(i, 0, false, -1)
 	}
 	cfg.stopDistributedProcesses()
@@ -465,6 +465,6 @@ func (cfg *configDespliegue) someterOperacion(idLider int, indice int,
 
 	if reply.IndiceRegistro != indice || idLider != reply.IdLider {
 		cfg.t.Fatalf("Operacion no sometida correctamente en indice %d en "+
-			"subtest %s", log, cfg.t.Name())
+			"subtest %s", indice, cfg.t.Name())
 	}
 }
