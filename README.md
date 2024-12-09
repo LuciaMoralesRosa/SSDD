@@ -23,3 +23,5 @@
  ssh-keygen -t rsa -b 4096 -> crear clave publica
  ssh-copy-id a816906@central.cps.unizar.es -> enviar clave publica a la maquina remota
  ssh a816906@central.cps.unizar.es -> acceso a central
+
+ ssh-copy-id a816906@192.168.3.3

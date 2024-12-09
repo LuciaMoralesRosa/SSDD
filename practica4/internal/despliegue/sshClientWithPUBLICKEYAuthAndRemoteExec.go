@@ -14,7 +14,7 @@ import (
 	"bytes"
 
 	//"fmt"
-
+	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
@@ -57,12 +57,24 @@ func getHostKey(host string) ssh.PublicKey {
 	return hostKey
 }
 
-// Ejecutar comando ssh remoto y devolver salida
-func executeCmd(hostname string, cmd string, session *ssh.Session) string {
+func executeCmd(cmd, hostname string, config *ssh.ClientConfig) string {
+	conn, err := ssh.Dial("tcp", hostname+":22", config)
+	if err != nil {
+		log.Fatalln("ERROR CONEXION SSH", err)
+	}
+	defer conn.Close()
+
+	//fmt.Printf("APRES CONN %#v\n", config)
+
+	session, err := conn.NewSession()
+	if err != nil {
+		log.Fatalln("ERROR SESSION", err)
+	}
+	defer session.Close()
+
 	//fmt.Println("APRES SESSION")
 
 	var stdoutBuf bytes.Buffer
-
 	session.Stdout = &stdoutBuf
 	session.Stderr = &stdoutBuf
 
@@ -92,71 +104,45 @@ func buildSSHConfig(signer ssh.Signer) *ssh.ClientConfig {
 	}
 }
 
-// Get signer from one of private key files id_ed25519, id_ecdsa or id_rsa
-func getSigner(pkeyFile string) (ssh.Signer, error) {
-	var signer ssh.Signer
+func execOneHost(hostname string, results chan<- string,
+	signer ssh.Signer, cmd string) {
+	// get host public key
+	// ssh_config must have option "HashKnownHosts no" !!!!
+	//hostKey := getHostKey(hostname)
+	//config := buildSSHConfig(signer, hostKey)
+	config := buildSSHConfig(signer)
 
-	//Read private key file for user
-	pkey, err := os.ReadFile(filepath.Join(os.Getenv("HOME"), ".ssh", pkeyFile))
+	//fmt.Println(cmd)
+	//fmt.Println(hostname)
 
-	//fmt.Println("PrivKey: ", string(pkey))
-
-	if err == nil {
-		// Create the Signer for this private key.
-		signer, err = ssh.ParsePrivateKey(pkey)
-	}
-
-	return signer, err
-
-}
-
-// Ejecutar comando ssh en un host con autentifiación de clave pública
-func execOneHost(hostname string, results chan<- string, cmd string) {
-
-	pkeyFiles := []string{"id_ed25519", "id_ecdsa", "id_rsa"}
-
-	for _, pkeyOneFile := range pkeyFiles {
-		signer, errSigner := getSigner(pkeyOneFile)
-		if errSigner == nil {
-			// ssh_config must have option "HashKnownHosts no" !!!!
-			//hostKey := getHostKey(hostname)
-			//config := buildSSHConfig(signer, hostKey)
-			config := buildSSHConfig(signer)
-
-			conn, errConn := ssh.Dial("tcp", hostname+":22", config)
-			if errConn != nil {
-				continue
-			}
-
-			//fmt.Printf("APRES CONN %#v\n", config)
-
-			session, errSession := conn.NewSession()
-			if errSession != nil {
-				conn.Close()
-				continue
-			}
-
-			// ejecuta comano con buena sesión ssh al host remoto
-			results <- executeCmd(hostname, cmd, session)
-
-			session.Close()
-			conn.Close()
-
-			return // Se ha ejecutado correctamente
-		}
-	}
-
-	log.Fatalf("NO funciona conexión ssh con clave pública a %s", hostname)
+	results <- executeCmd(cmd, hostname, config)
 }
 
 // Ejecutar un mismo comando en múltiples hosts mediante ssh
 func ExecMutipleHosts(cmd string,
 	hosts []string,
-	results chan<- string) {
+	results chan<- string,
+	privKeyFile string) {
 
 	//results := make(chan string, 1000)
 
+	//Read private key file for user
+	pkey, err := ioutil.ReadFile(
+		filepath.Join(os.Getenv("HOME"), ".ssh", privKeyFile))
+
+	//fmt.Println("PrivKey: ", string(pkey))
+
+	if err != nil {
+		log.Fatalf("unable to read private key: %v", err)
+	}
+
+	// Create the Signer for this private key.
+	signer, err := ssh.ParsePrivateKey(pkey)
+	if err != nil {
+		log.Fatalf("unable to parse private key: %v", err)
+	}
+
 	for _, hostname := range hosts {
-		go execOneHost(hostname, results, cmd)
+		go execOneHost(hostname, results, signer, cmd)
 	}
 }
