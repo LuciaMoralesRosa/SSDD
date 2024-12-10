@@ -33,7 +33,7 @@ func main() {
 	canalAplicarOp := make(chan raft.AplicaOperacion, 1000)
 
 	// Parte Servidor
-	nr := raft.NuevoNodo(nodos, me, make(chan raft.AplicaOperacion, 1000))
+	nr := raft.NuevoNodo(nodos, me, canalAplicarOp)
 	rpc.Register(nr)
 
 	go aplicarOperacion(almacen, canalAplicarOp)
@@ -51,12 +51,14 @@ func main() {
 func aplicarOperacion(almacen map[string]string, canalConexion chan raft.AplicaOperacion) {
 	for {
 		op := <-canalConexion
+		fmt.Printf("Soy el servidor y me ha llegado una operacion de tipo %s", op.Operacion.Operacion)
 		if op.Operacion.Operacion == "leer" {
 			op.Operacion.Valor = almacen[op.Operacion.Clave]
 		} else if op.Operacion.Operacion == "escribir" {
 			almacen[op.Operacion.Clave] = op.Operacion.Valor
 			op.Operacion.Valor = "escrito"
 		}
+		fmt.Printf("Soy el servidor y voy a responder a mi nodo por el canal aplicarOp")
 		canalConexion <- op
 	}
 }

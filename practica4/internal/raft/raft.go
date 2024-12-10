@@ -113,7 +113,7 @@ type NodoRaft struct {
 	Latido       chan bool
 
 	AplicarOp chan AplicaOperacion //
-	Aplicada  chan string          // Indicar a los clientes que su
+	Aplicada  chan AplicaOperacion // Indicar a los clientes que su
 	// entrada ha sido aplicada a la
 	// maquina de estados
 
@@ -185,7 +185,7 @@ func NuevoNodo(nodos []rpctimeout.HostPort, yo int,
 	nr.Latido = make(chan bool)
 
 	nr.AplicarOp = canalAplicarOperacion
-	nr.Aplicada = make(chan string)
+	nr.Aplicada = make(chan AplicaOperacion)
 
 	nr.Estado = SEGUIDOR
 	nr.NumVotos = 0
@@ -253,6 +253,7 @@ func (nr *NodoRaft) someterOperacion(operacion TipoOperacion) (int, int,
 
 	if esLider {
 		nr.Mux.Lock()
+		nr.Logger.Printf("Soy lider y me ha llegado una nueva entrada\n")
 		mandato = nr.CurrentTerm
 		indice = nr.CommitIndex
 
@@ -262,11 +263,16 @@ func (nr *NodoRaft) someterOperacion(operacion TipoOperacion) (int, int,
 			Term:      mandato,
 			Index:     indiceEntrada,
 		}
+		nr.Logger.Printf("Soy lider y voy a añadir la nueva entrada a mi log\n")
 		nr.Log = append(nr.Log, entrada)
 		nr.Mux.Unlock()
 
-		valor := <-nr.AplicarOp
-		valorADevolver = valor.Operacion.Operacion
+		nr.Logger.Printf("Soy lider y voy a esperar a la notificacion de aplicada por el canal nr.Aplicada\n")
+		//valor := <-nr.AplicarOp
+		//valorADevolver = valor.Operacion.Operacion
+		valor := <-nr.Aplicada
+		nr.Logger.Printf("Soy lider y se ha obtenido valor por el canar nr.Aplicada\n Se va a responder al cliente\n")
+		valorADevolver = valor.Operacion.Valor
 
 		nr.LastApplied = indiceEntrada
 	}
@@ -469,8 +475,9 @@ func (nr *NodoRaft) AppendEntries(args *ArgAppendEntries,
 		// Si el seguidor es consistente o no hay entradas
 		if args.PrevLogIndex == -1 || nr.esConsistente(args.PrevLogIndex,
 			args.PrevLogTerm) {
+			nr.Logger.Printf("Soy seguidor y respondo al lider que ha tenido exito")
 			results.Success = true
-			nr.guardarEntradasEnLog(args)
+			go nr.guardarEntradasEnLog(args)
 		}
 	}
 
@@ -484,7 +491,8 @@ func (nr *NodoRaft) esConsistente(indice int, mandato int) bool {
 }
 
 func (nr *NodoRaft) guardarEntradasEnLog(args *ArgAppendEntries) {
-	if !esLatido(args.Entrada) {
+	nr.Logger.Printf("En guardar entradas con entrada %d. \n", args.Entrada.Index)
+	if !esLatido(args.Entrada) && len(args.Entradas) != 0 {
 		// Añade la nueva entrada y las anteriores si es necesario
 		// Indice del log donde empezar a insertar entradas
 		indiceLog := args.PrevLogIndex + 1
@@ -492,8 +500,12 @@ func (nr *NodoRaft) guardarEntradasEnLog(args *ArgAppendEntries) {
 		indiceEntradas := 0
 
 		// Obtener valores para indiceLogInsertar e indiceNuevaEntrada
-		for !posicionEncontrada(indiceLog, indiceEntradas, nr.Log,
-			args.Entradas) {
+		//nr.Logger.Printf("Entrando a posicion encontrada con indiceLog %d. \n", indiceLog)
+		//nr.Logger.Printf("Entrando a posicion encontrada con indiceEntradas %d. \n", indiceEntradas)
+		//nr.Logger.Printf("Entrando a posicion encontrada con nr.Log %v. \n", nr.Log)
+		//nr.Logger.Printf("Entrando a posicion encontrada con args.Entradas %v. \n", args.Entradas)
+
+		for !(posicionEncontrada(indiceLog, indiceEntradas, nr.Log, args.Entradas)) {
 			indiceLog++
 			indiceEntradas++
 		}
@@ -510,7 +522,7 @@ func (nr *NodoRaft) guardarEntradasEnLog(args *ArgAppendEntries) {
 			nuevasEntradas := args.Entradas[indiceEntradas:]
 			nr.Log = append(entradasCoincidentes, nuevasEntradas...)
 
-			nr.Logger.Printf("Nodo %d: Mi nuevo log es %v\n", nr.Log)
+			nr.Logger.Printf("Nodo %d: Mi nuevo log es %v\n", nr.Yo, nr.Log)
 		}
 	}
 
@@ -538,8 +550,9 @@ func (nr *NodoRaft) aplicarEntradasEnMaquinas() {
 			Indice:    ultimaAplicada + entrada + 1,
 		}
 		nr.AplicarOp <- solicitud
-		valor := <-nr.AplicarOp
-		nr.Aplicada <- valor.Operacion.Valor
+		//valor := <-nr.AplicarOp
+		<-nr.AplicarOp
+		//nr.Aplicada <- valor.Operacion.Valor
 	}
 }
 
@@ -555,13 +568,21 @@ func esLatido(entrada EntradaLog) bool {
 }
 
 // Devuelve true si se ha encontrado la posicion critica
-func posicionEncontrada(indiceLog int, indiceEntradas int, log []EntradaLog,
-	entradas []EntradaLog) bool {
+func posicionEncontrada(indiceLog int, indiceEntradas int, log []EntradaLog, entradas []EntradaLog) bool {
 	// Dentro de limites
-	limites := indiceLog < len(log) && indiceEntradas < len(entradas)
-	// Terminos coincidentes
+
+	if len(entradas) == 0 || len(log) == 0 {
+		return true
+	}
+
+	if indiceLog >= len(log) || indiceEntradas >= len(entradas) {
+		return true
+	}
+
 	coinciden := log[indiceLog].Term == entradas[indiceEntradas].Term
-	return !(limites && coinciden)
+
+	return !(coinciden)
+
 }
 
 // ----- Metodos/Funciones a utilizar como clientes
@@ -801,10 +822,16 @@ func (nr *NodoRaft) envioDeLatido(nodo int, nextIndex int,
 	var resultadoLatido Results
 
 	err := nr.Nodos[nodo].CallTimeout("NodoRaft.AppendEntries", args,
-		resultadoLatido, 33*time.Millisecond)
+		&resultadoLatido, 33*time.Millisecond)
 	if err != nil {
+		nr.Logger.Printf("Soy lider y la llamada AppendEntries me esta dando un error\n")
+
 		// No bloquear en errores
 		return
+	}
+
+	if resultadoLatido.Success {
+		nr.Logger.Printf("Soy lider y resultado latido en termino %d es %t\n", resultadoLatido.Term, resultadoLatido.Success)
 	}
 
 	if esLatido(args.Entrada) { // Enviado latido
@@ -815,6 +842,7 @@ func (nr *NodoRaft) envioDeLatido(nodo int, nextIndex int,
 			nr.SoySeguidor <- true
 		}
 	} else { // Se han enviado entradas
+		nr.Logger.Printf("Soy lider y he enviado entradas\n")
 		if resultadoLatido.Success {
 			// Si la llamada ha tenido exito, ie, el seguidor es consistente
 			nr.Mux.Lock()
@@ -826,6 +854,7 @@ func (nr *NodoRaft) envioDeLatido(nodo int, nextIndex int,
 			// Como se han añadido entradas, comprobamos si se puede comprometer
 			nr.comprometerEntradas()
 		} else {
+			nr.Logger.Printf("Soy lider y el appendentries ha fallado\n")
 			// El seguidor no era consistente - se reintentara la llamada
 			nr.NextIndex[nodo] = nextIndex - 1
 		}
@@ -834,7 +863,7 @@ func (nr *NodoRaft) envioDeLatido(nodo int, nextIndex int,
 
 func (nr *NodoRaft) comprometerEntradas() {
 	// CommitIndex -> indice de la entrada comprometida mas alta
-
+	nr.Logger.Printf("Soy lider y voy a ver si tengo entradas que comprometer\n")
 	for entrada := nr.CommitIndex + 1; entrada < len(nr.Log); entrada++ {
 		// El lider solo compromete contando replicas las entradas del termino
 		// actual
@@ -844,20 +873,27 @@ func (nr *NodoRaft) comprometerEntradas() {
 			// Comprobar cuantos de los nodos tienen un matchIndex mayor o igual
 			for nodo := 0; nodo < len(nr.Nodos); nodo++ {
 				if nr.MatchIndex[nodo] >= entrada {
+					nr.Logger.Printf("Soy lider y tengo %d confirmaciones\n", confirmaciones)
 					confirmaciones++
 				}
 			}
+			nr.Logger.Printf("Soy lider y para la entrada %d tengo %d confirmaciones\n", entrada, confirmaciones)
 
 			// Mirar si hay mayoria -> entonces comprometemos la entrada
 			if confirmaciones > len(nr.Nodos)/2 {
+				nr.Logger.Printf("Soy lider y he conseguido mayoria para aplicar la entrada\n")
 				nr.CommitIndex = entrada
 				// Solicitud para aplicar la operacion en la maquina de estados
 				aplicarOp := AplicaOperacion{
 					Indice:    entrada,
 					Operacion: nr.Log[entrada].Operacion,
 				}
+				nr.Logger.Printf("Soy lider y voy a notificar a mi servidor\n")
 				nr.AplicarOp <- aplicarOp
-				//nr.Aplicada <- nr.AplicarOp // La aplico en el lider
+				nr.Logger.Printf("Soy lider y he notificado a mi servidor, voy a esperar su respuesta\n")
+				valor := <-nr.AplicarOp // La aplico en el lider
+				nr.Logger.Printf("Soy lider me ha respondido mi servidor\n Se va a pasar notificacion para responder al cliente\n")
+				nr.Aplicada <- valor
 			}
 		}
 	}

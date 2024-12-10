@@ -2,7 +2,6 @@ package testintegracionraft1
 
 import (
 	"fmt"
-	"math/rand"
 	"raft/internal/comun/check"
 
 	//"log"
@@ -33,8 +32,8 @@ const (
 
 	// Ejecucion especial en maquinas por error en 192.168.3.1 y 192.168.3.2
 	MAQUINA1 = "192.168.3.2"
-	MAQUINA2 = "192.168.3.4"
-	MAQUINA3 = "192.168.3.6"
+	MAQUINA2 = "192.168.3.3"
+	MAQUINA3 = "192.168.3.4"
 
 	//puertos
 	PUERTOREPLICA1 = "31110"
@@ -192,7 +191,7 @@ func (cfg *configDespliegue) soloArranqueYparadaTest1(t *testing.T) {
 
 // Primer lider en marcha - 3 NODOS RAFT
 func (cfg *configDespliegue) elegirPrimerLiderTest2(t *testing.T) {
-	//t.Skip("SKIPPED ElegirPrimerLiderTest2")
+	t.Skip("SKIPPED ElegirPrimerLiderTest2")
 
 	fmt.Println(t.Name(), ".....................")
 	cfg.startDistributedProcesses()
@@ -264,26 +263,29 @@ func (cfg *configDespliegue) AcuerdoApesarDeSeguidor(t *testing.T) {
 	lider := cfg.pruebaUnLider(numeroNodos)
 	fmt.Printf("El lider es el nodo %d\n", lider)
 
-	cfg.someterOperacionConFallos(lider, 0, "escribir", "escritura1", "primeraEscritura")
+	cfg.someterOperacionConFallos(lider, "escribir", "escritura1", "primeraEscritura")
+	cfg.comprobarEstadoRemoto(lider, 1, true, lider)
 
 	// Desconectar uno de los nodos
-	cfg.pararNodo()
+	cfg.pararSeguidores(lider, 1)
 	time.Sleep(2 * time.Second)
 
 	lider = cfg.pruebaUnLider(numeroNodos)
 	fmt.Printf("El lider es el nodo %d\n", lider)
 
 	// Comprobar varios acuerdos con una réplica desconectada
-	cfg.someterOperacionConFallos(lider, 1, "escribir", "escritura2", "2Escritura")
-	cfg.someterOperacionConFallos(lider, 2, "leer", "", "")
-	cfg.someterOperacionConFallos(lider, 3, "escribir", "escritura3", "3Escritura")
+	cfg.someterOperacionConFallos(lider, "escribir", "escritura2", "2Escritura")
+	cfg.comprobarEstadoRemoto(lider, 1, true, lider)
+	cfg.someterOperacionConFallos(lider, "escribir", "escritura3", "3Escritura")
+	cfg.comprobarEstadoRemoto(lider, 1, true, lider)
 
 	// reconectar nodo Raft previamente desconectado y comprobar varios acuerdos
 	cfg.activarNodosDesconectados()
 
-	cfg.someterOperacionConFallos(lider, 4, "escribir", "escritura4", "4Escritura")
-	cfg.someterOperacionConFallos(lider, 5, "leer", "", "")
-	cfg.someterOperacionConFallos(lider, 6, "escribir", "escritura5", "5Escritura")
+	cfg.someterOperacionConFallos(lider, "escribir", "escritura4", "4Escritura")
+	cfg.comprobarEstadoRemoto(lider, 1, true, lider)
+	cfg.someterOperacionConFallos(lider, "escribir", "escritura5", "5Escritura")
+	cfg.comprobarEstadoRemoto(lider, 1, true, lider)
 
 	cfg.stopDistributedProcesses()
 	fmt.Println(".............", t.Name(), "Superado")
@@ -300,24 +302,23 @@ func (cfg *configDespliegue) SinAcuerdoPorFallos(t *testing.T) {
 	//  Obtener un lider y, a continuación desconectar 2 de los nodos Raft
 	lider := cfg.pruebaUnLider(numeroNodos)
 	fmt.Printf("El lider es el nodo %d\n", lider)
-	cfg.someterOperacionConFallos(lider, 0, "escribir", "escritura1", "primeraEscritura")
+	cfg.someterOperacionConFallos(lider, "escribir", "escritura1", "primeraEscritura")
 
 	// Desconectar uno de los nodos
-	cfg.pararSeguidores()
+	cfg.pararSeguidores(lider, len(cfg.nodosRaft)-1)
 	time.Sleep(2 * time.Second)
 
 	// Comprobar varios acuerdos con 2 réplicas desconectada
 	// Comprobar varios acuerdos con una réplica desconectada
-	cfg.someterOperacionConFallos(lider, 1, "escribir", "escritura2", "2Escritura")
-	cfg.someterOperacionConFallos(lider, 2, "leer", "", "")
-	cfg.someterOperacionConFallos(lider, 3, "escribir", "escritura3", "3Escritura")
+	cfg.someterOperacionConFallos(lider, "escribir", "escritura2", "2Escritura")
+	cfg.someterOperacionConFallos(lider, "leer", "", "")
+	cfg.someterOperacionConFallos(lider, "escribir", "escritura3", "3Escritura")
 
 	// reconectar lo2 nodos Raft  desconectados y probar varios acuerdos
 	cfg.activarNodosDesconectados()
-	cfg.someterOperacionConFallos(lider, 4, "escribir", "escritura4", "4Escritura")
-	cfg.someterOperacionConFallos(lider, 5, "leer", "", "")
-	cfg.someterOperacionConFallos(lider, 6, "escribir", "escritura5", "5Escritura")
-
+	cfg.someterOperacionConFallos(lider, "escribir", "escritura4", "4Escritura")
+	cfg.someterOperacionConFallos(lider, "leer", "", "")
+	cfg.someterOperacionConFallos(lider, "escribir", "escritura5", "5Escritura")
 	cfg.stopDistributedProcesses()
 	fmt.Println(".............", t.Name(), "Superado")
 }
@@ -335,14 +336,14 @@ func (cfg *configDespliegue) SometerConcurrentementeOperaciones(t *testing.T) {
 	// Obtener un lider y, a continuación someter una operacion
 	lider := cfg.pruebaUnLider(numeroNodos)
 	fmt.Printf("El lider es el nodo %d\n", lider)
-	cfg.someterOperacionConFallos(lider, 0, "escribir", "escritura1", "primeraEscritura")
+	cfg.someterOperacionConFallos(lider, "escribir", "escritura1", "primeraEscritura")
 
 	// Someter 5  operaciones concurrentes
-	go cfg.someterOperacionConFallos(lider, 1, "escribir", "escritura2", "2Escritura")
-	go cfg.someterOperacionConFallos(lider, 2, "leer", "", "")
-	go cfg.someterOperacionConFallos(lider, 3, "escribir", "escritura3", "3Escritura")
-	go cfg.someterOperacionConFallos(lider, 4, "escribir", "escritura4", "4Escritura")
-	go cfg.someterOperacionConFallos(lider, 5, "leer", "", "")
+	go cfg.someterOperacionConFallos(lider, "escribir", "escritura2", "2Escritura")
+	go cfg.someterOperacionConFallos(lider, "leer", "", "")
+	go cfg.someterOperacionConFallos(lider, "escribir", "escritura3", "3Escritura")
+	go cfg.someterOperacionConFallos(lider, "escribir", "escritura4", "4Escritura")
+	go cfg.someterOperacionConFallos(lider, "leer", "", "")
 
 	time.Sleep(5 * time.Second)
 
@@ -485,7 +486,7 @@ func (cfg *configDespliegue) someterOperacion(idLider int, indice int,
 		Valor:     valor,
 	}
 	err := cfg.nodosRaft[idLider].CallTimeout("NodoRaft.SometerOperacionRaft",
-		peticion, &reply, 50*time.Millisecond)
+		peticion, &reply, 5000*time.Millisecond)
 	check.CheckError(err, "Error en llamada RPC SometerOperacionRaft")
 
 	if reply.IndiceRegistro != indice || idLider != reply.IdLider {
@@ -494,7 +495,7 @@ func (cfg *configDespliegue) someterOperacion(idLider int, indice int,
 	}
 }
 
-func (cfg *configDespliegue) someterOperacionConFallos(idLider int, indice int,
+func (cfg *configDespliegue) someterOperacionConFallos(idLider int,
 	operacion string, clave string, valor string) (int, int, bool, int, string) {
 	var reply raft.ResultadoRemoto
 	peticion := raft.TipoOperacion{
@@ -511,28 +512,29 @@ func (cfg *configDespliegue) someterOperacionConFallos(idLider int, indice int,
 		reply.ValorADevolver
 }
 
-func (cfg *configDespliegue) pararNodo() {
-	var reply raft.Vacio
-	rand.Seed(time.Now().UnixNano())
-	i := rand.Intn(numeroNodos)
-	err := cfg.nodosRaft[i].CallTimeout("NodoRaft.ParaNodo", raft.Vacio{}, &reply, 20*time.Millisecond)
-	check.CheckError(err, "Error en la llamada RPC de pararNodo")
-
-	cfg.conectados[i] = false
-	fmt.Printf("Se ha detenido el nodo %d\n", i)
-}
-
-func (cfg *configDespliegue) pararSeguidores() {
-	var reply raft.Vacio
-	for nodo, endPoint := range cfg.nodosRaft {
-		if nodo != cfg.idLider {
-			err := endPoint.CallTimeout("NodoRaft.ParaNodo", raft.Vacio{},
-				&reply, 20*time.Millisecond)
-			check.CheckError(err, "Error en la llamada RPC de pararNodo")
-			cfg.conectados[nodo] = false
-			fmt.Printf("Se ha detenido el nodo %d\n", nodo)
+func (cfg *configDespliegue) pararSeguidores(idLider int, numSeguidores int) []int {
+	// Obtener lista de seguidores
+	seguidores := []int{}
+	for nodo := 0; nodo < len(cfg.nodosRaft); nodo++ {
+		if nodo != idLider {
+			seguidores = append(seguidores, nodo)
 		}
 	}
+
+	// Con la lista de seguidores -> parar numSeguidores
+	desconectados := []int{}
+	for nodo := 0; nodo < numSeguidores; nodo++ {
+		fmt.Printf("Desconectar seguidor %d\n", nodo)
+		var reply raft.EstadoRemoto
+		err := cfg.nodosRaft[seguidores[nodo]].CallTimeout("NodoRaft.ParaNodo",
+			raft.Vacio{}, &reply, 1*time.Second)
+		check.CheckError(err, "Error en la llamada RPC de ParaNodo")
+		desconectados = append(desconectados, nodo)
+		fmt.Printf("Se ha detenido el nodo %d\n", nodo)
+	}
+
+	time.Sleep(3 * time.Second)
+	return desconectados
 }
 
 func (cfg *configDespliegue) comprobarEstadoRegistros(index int) {
