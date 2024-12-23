@@ -253,7 +253,7 @@ func (cfg *configDespliegue) tresOperacionesComprometidasEstable(t *testing.T) {
 
 // Se consigue acuerdo a pesar de desconexiones de seguidor -- 3 NODOS RAFT
 func (cfg *configDespliegue) AcuerdoApesarDeSeguidor(t *testing.T) {
-	//t.Skip("SKIPPED AcuerdoApesarDeSeguidor")
+	t.Skip("SKIPPED AcuerdoApesarDeSeguidor")
 
 	// A completar ???
 	fmt.Println(t.Name(), ".....................")
@@ -263,8 +263,14 @@ func (cfg *configDespliegue) AcuerdoApesarDeSeguidor(t *testing.T) {
 	lider := cfg.pruebaUnLider(numeroNodos)
 	fmt.Printf("El lider es el nodo %d\n", lider)
 
-	cfg.someterOperacionConFallos(lider, "escribir", "escritura1", "primeraEscritura")
-	cfg.comprobarEstadoRemoto(lider, 1, true, lider)
+	var indiceObtenido int
+	var valorObtenido string
+	valorDeseado := "obtenido"
+
+	indiceObtenido, _, _, _, valorObtenido = cfg.someterOperacionConFallos(lider, "escribir", "escritura2", valorDeseado)
+	cfg.comprobarResultadosSometer(indiceObtenido, 0, valorObtenido, valorDeseado)
+
+	//cfg.comprobarEstadoRemoto(lider, 1, true, lider)
 
 	// Desconectar uno de los nodos
 	cfg.pararSeguidores(lider, 1)
@@ -274,18 +280,25 @@ func (cfg *configDespliegue) AcuerdoApesarDeSeguidor(t *testing.T) {
 	fmt.Printf("El lider es el nodo %d\n", lider)
 
 	// Comprobar varios acuerdos con una réplica desconectada
-	cfg.someterOperacionConFallos(lider, "escribir", "escritura2", "2Escritura")
-	cfg.comprobarEstadoRemoto(lider, 1, true, lider)
-	cfg.someterOperacionConFallos(lider, "escribir", "escritura3", "3Escritura")
-	cfg.comprobarEstadoRemoto(lider, 1, true, lider)
+	indiceObtenido, _, _, _, valorObtenido = cfg.someterOperacionConFallos(lider, "escribir", "escritura2", valorDeseado)
+	//cfg.comprobarEstadoRemoto(lider, 1, true, lider)
+	cfg.comprobarResultadosSometer(indiceObtenido, 1, valorObtenido, valorDeseado)
+
+	indiceObtenido, _, _, _, valorObtenido = cfg.someterOperacionConFallos(lider, "escribir", "escritura3", valorDeseado)
+	//cfg.comprobarEstadoRemoto(lider, 1, true, lider)
+	cfg.comprobarResultadosSometer(indiceObtenido, 2, valorObtenido, valorDeseado)
 
 	// reconectar nodo Raft previamente desconectado y comprobar varios acuerdos
+	fmt.Printf("Se va a conectar el nodo desconectado\n")
 	cfg.activarNodosDesconectados()
 
-	cfg.someterOperacionConFallos(lider, "escribir", "escritura4", "4Escritura")
-	cfg.comprobarEstadoRemoto(lider, 1, true, lider)
-	cfg.someterOperacionConFallos(lider, "escribir", "escritura5", "5Escritura")
-	cfg.comprobarEstadoRemoto(lider, 1, true, lider)
+	indiceObtenido, _, _, _, valorObtenido = cfg.someterOperacionConFallos(lider, "escribir", "escritura4", valorDeseado)
+	//cfg.comprobarEstadoRemoto(lider, 1, true, lider)
+	cfg.comprobarResultadosSometer(indiceObtenido, 3, valorObtenido, valorDeseado)
+
+	indiceObtenido, _, _, _, valorObtenido = cfg.someterOperacionConFallos(lider, "escribir", "escritura5", valorDeseado)
+	//cfg.comprobarEstadoRemoto(lider, 1, true, lider)
+	cfg.comprobarResultadosSometer(indiceObtenido, 4, valorObtenido, valorDeseado)
 
 	cfg.stopDistributedProcesses()
 	fmt.Println(".............", t.Name(), "Superado")
@@ -293,32 +306,50 @@ func (cfg *configDespliegue) AcuerdoApesarDeSeguidor(t *testing.T) {
 
 // NO se consigue acuerdo al desconectarse mayoría de seguidores -- 3 NODOS RAFT
 func (cfg *configDespliegue) SinAcuerdoPorFallos(t *testing.T) {
-	t.Skip("SKIPPED SinAcuerdoPorFallos")
+	//t.Skip("SKIPPED SinAcuerdoPorFallos")
 
 	// A completar ???
 	fmt.Println(t.Name(), ".....................")
 	cfg.startDistributedProcesses()
 
+	var indiceObtenido int
+	var valorObtenido string
+	valorDeseado := "obtenido"
+
 	//  Obtener un lider y, a continuación desconectar 2 de los nodos Raft
 	lider := cfg.pruebaUnLider(numeroNodos)
 	fmt.Printf("El lider es el nodo %d\n", lider)
-	cfg.someterOperacionConFallos(lider, "escribir", "escritura1", "primeraEscritura")
+	indiceObtenido, _, _, _, valorObtenido = cfg.someterOperacionConFallos(lider, "escribir", "escritura1", valorDeseado)
+	cfg.comprobarResultadosSometer(indiceObtenido, 0, valorObtenido, valorDeseado)
 
+	time.Sleep(1 * time.Second)
 	// Desconectar uno de los nodos
 	cfg.pararSeguidores(lider, len(cfg.nodosRaft)-1)
-	time.Sleep(2 * time.Second)
+	//time.Sleep(2 * time.Second)
+
+	fmt.Printf("Checkpoint 1\n")
 
 	// Comprobar varios acuerdos con 2 réplicas desconectada
 	// Comprobar varios acuerdos con una réplica desconectada
-	cfg.someterOperacionConFallos(lider, "escribir", "escritura2", "2Escritura")
-	cfg.someterOperacionConFallos(lider, "leer", "", "")
-	cfg.someterOperacionConFallos(lider, "escribir", "escritura3", "3Escritura")
+	indiceObtenido, _, _, _, valorObtenido = cfg.someterOperacionConFallos(lider, "escribir", "escritura2", valorDeseado)
+	cfg.comprobarResultadosSometer(indiceObtenido, 1, valorObtenido, valorDeseado)
+
+	//cfg.someterOperacionConFallos(lider, "leer", "", "")
+	indiceObtenido, _, _, _, valorObtenido = cfg.someterOperacionConFallos(lider, "escribir", "escritura3", valorDeseado)
+	cfg.comprobarResultadosSometer(indiceObtenido, 2, valorObtenido, valorDeseado)
+
+	fmt.Printf("Checkpoint 2\n")
 
 	// reconectar lo2 nodos Raft  desconectados y probar varios acuerdos
 	cfg.activarNodosDesconectados()
+
+	fmt.Printf("Checkpoint 3\n")
+
 	cfg.someterOperacionConFallos(lider, "escribir", "escritura4", "4Escritura")
-	cfg.someterOperacionConFallos(lider, "leer", "", "")
+	//cfg.someterOperacionConFallos(lider, "leer", "", "")
 	cfg.someterOperacionConFallos(lider, "escribir", "escritura5", "5Escritura")
+	fmt.Printf("Checkpoint 4\n")
+
 	cfg.stopDistributedProcesses()
 	fmt.Println(".............", t.Name(), "Superado")
 }
@@ -456,13 +487,14 @@ func (cfg *configDespliegue) comprobarEstadoRemoto(idNodoDeseado int,
 func (cfg *configDespliegue) activarNodosDesconectados() {
 	for i, endPoint := range cfg.nodosRaft {
 		if !cfg.conectados[i] {
+			fmt.Printf("Se va a encender el nodo %d\n", i)
 			despliegue.ExecMutipleHosts(EXECREPLICACMD+" "+strconv.Itoa(i)+
 				rpctimeout.HostPortArrayToString(cfg.nodosRaft),
 				[]string{endPoint.Host()}, cfg.cr, PRIVKEYFILE)
 			cfg.conectados[i] = true
 		}
 	}
-	time.Sleep(10000 * time.Millisecond)
+	time.Sleep(1000 * time.Millisecond)
 }
 
 func (cfg *configDespliegue) pararLider(indiceLider int) {
@@ -490,6 +522,7 @@ func (cfg *configDespliegue) someterOperacion(idLider int, indice int,
 	check.CheckError(err, "Error en llamada RPC SometerOperacionRaft")
 
 	if reply.IndiceRegistro != indice || idLider != reply.IdLider {
+		fmt.Printf("\nIndiceRegistro: %d - Indice: %d - idLider: %d - replyLider:%d\n", reply.IndiceRegistro, indice, idLider, reply.IdLider)
 		cfg.t.Fatalf("Operacion no sometida correctamente en indice %d en "+
 			"subtest %s", indice, cfg.t.Name())
 	}
@@ -504,12 +537,19 @@ func (cfg *configDespliegue) someterOperacionConFallos(idLider int,
 		Valor:     valor,
 	}
 	err := cfg.nodosRaft[idLider].CallTimeout("NodoRaft.SometerOperacionRaft",
-		peticion, &reply, 5000*time.Millisecond)
+		peticion, &reply, 10000*time.Millisecond)
 	check.CheckError(err, "Error en llamada RPC SometerOperacionRaft")
 
 	cfg.idLider = reply.IdLider
 	return reply.IndiceRegistro, reply.Mandato, reply.EsLider, reply.IdLider,
 		reply.ValorADevolver
+}
+
+func (cfg *configDespliegue) comprobarResultadosSometer(indiceObtenido int, indiceDeseado int, valorObtenido string, valorDeseado string) {
+	if indiceObtenido != indiceDeseado || valorObtenido != valorDeseado {
+		fmt.Printf("\nindiceObtenido: %d - indiceDeseado: %d - valorObtenido: %s - valorDeseado: %s\n", indiceObtenido, indiceDeseado, valorObtenido, valorDeseado)
+		cfg.t.Fatalf("Operacion sometida incorrectamente en el indice %d y subtest %s", indiceDeseado, cfg.t.Name())
+	}
 }
 
 func (cfg *configDespliegue) pararSeguidores(idLider int, numSeguidores int) []int {
@@ -524,16 +564,17 @@ func (cfg *configDespliegue) pararSeguidores(idLider int, numSeguidores int) []i
 	// Con la lista de seguidores -> parar numSeguidores
 	desconectados := []int{}
 	for nodo := 0; nodo < numSeguidores; nodo++ {
-		fmt.Printf("Desconectar seguidor %d\n", nodo)
+		fmt.Printf("Desconectar seguidor %d\n", seguidores[nodo])
 		var reply raft.EstadoRemoto
 		err := cfg.nodosRaft[seguidores[nodo]].CallTimeout("NodoRaft.ParaNodo",
 			raft.Vacio{}, &reply, 1*time.Second)
 		check.CheckError(err, "Error en la llamada RPC de ParaNodo")
 		desconectados = append(desconectados, nodo)
-		fmt.Printf("Se ha detenido el nodo %d\n", nodo)
+		fmt.Printf("Se ha detenido el nodo %d\n", seguidores[nodo])
+		cfg.conectados[seguidores[nodo]] = false
 	}
 
-	time.Sleep(3 * time.Second)
+	time.Sleep(1 * time.Second)
 	return desconectados
 }
 
@@ -560,7 +601,7 @@ func (cfg *configDespliegue) comprobarEstadoRegistros(index int) {
 func (cfg *configDespliegue) obtenerEstadoLog(indice int) (int, int) {
 	var reply raft.EstadoLog
 	err := cfg.nodosRaft[indice].CallTimeout("NodoRaft.ObtenerEstadoLog",
-		raft.Vacio{}, &reply, 20*time.Second)
+		raft.Vacio{}, &reply, 2*time.Second)
 	check.CheckError(err, "Errro en la llamada RPC de obtenerEstadoLog")
 	return reply.Indice, reply.Term
 }

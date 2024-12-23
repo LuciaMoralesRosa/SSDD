@@ -51,14 +51,14 @@ func main() {
 func aplicarOperacion(almacen map[string]string, canalConexion chan raft.AplicaOperacion) {
 	for {
 		op := <-canalConexion
-		fmt.Printf("Soy el servidor y me ha llegado una operacion de tipo %s", op.Operacion.Operacion)
+		fmt.Printf("Soy el SERVIDOR y me ha llegado una operacion de tipo %s\n", op.Operacion.Operacion)
 		if op.Operacion.Operacion == "leer" {
 			op.Operacion.Valor = almacen[op.Operacion.Clave]
 		} else if op.Operacion.Operacion == "escribir" {
 			almacen[op.Operacion.Clave] = op.Operacion.Valor
-			op.Operacion.Valor = "escrito"
+			//op.Operacion.Valor = "escrito"
 		}
-		fmt.Printf("Soy el servidor y voy a responder a mi nodo por el canal aplicarOp")
+		fmt.Printf("Soy el SERVIDOR y voy a responder a mi nodo por el canal aplicarOp\n")
 		canalConexion <- op
 	}
 }

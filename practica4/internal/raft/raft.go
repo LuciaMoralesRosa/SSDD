@@ -255,7 +255,7 @@ func (nr *NodoRaft) someterOperacion(operacion TipoOperacion) (int, int,
 		nr.Mux.Lock()
 		nr.Logger.Printf("Soy lider y me ha llegado una nueva entrada\n")
 		mandato = nr.CurrentTerm
-		indice = nr.CommitIndex
+		indice = len(nr.Log)
 
 		indiceEntrada := len(nr.Log)
 		entrada := EntradaLog{
@@ -526,7 +526,10 @@ func (nr *NodoRaft) guardarEntradasEnLog(args *ArgAppendEntries) {
 		}
 	}
 
+	nr.Logger.Printf("Nodo %d: Soy seguidor y el leaderCommit de args es %d y mi CommitIndex es %d\n", nr.Yo, args.LeaderCommit, nr.CommitIndex)
+
 	if args.LeaderCommit > nr.CommitIndex {
+		nr.Logger.Printf("Nodo %d: Soy seguidor y voy a aplicar entradas en mi maquina\n", nr.Yo)
 		nr.CommitIndex = min(args.LeaderCommit, len(nr.Log)-1)
 		nr.aplicarEntradasEnMaquinas()
 	}
@@ -540,18 +543,23 @@ func (nr *NodoRaft) aplicarEntradasEnMaquinas() {
 	if nr.CommitIndex > nr.LastApplied { // Se pueden aplicar nuevas entradas
 		// Entradas desde la ultima aplicada hasta la ultima comprometida
 		entradas = nr.Log[nr.LastApplied+1 : nr.CommitIndex+1]
+		nr.Logger.Printf("Nodo %d: Soy seguidor voy a aplicar las entradas %v\n", nr.Yo, entradas)
 		nr.LastApplied = nr.CommitIndex // Actualizamos ultima entrada aplicada
 	}
 
 	// Aplicar todas las entradas
-	for entrada := 0; entrada < len(entradas)-1; entrada++ {
+	for entrada := 0; entrada < len(entradas); entrada++ {
 		solicitud := AplicaOperacion{
 			Operacion: nr.Log[ultimaAplicada+entrada+1].Operacion,
 			Indice:    ultimaAplicada + entrada + 1,
 		}
+		nr.Logger.Printf("Nodo %d: Soy seguidor voy a notificar a mi servidor de la entrada %d\n", nr.Yo, entrada)
 		nr.AplicarOp <- solicitud
 		//valor := <-nr.AplicarOp
+		nr.Logger.Printf("Nodo %d: Soy seguidor he notificado a mi servidor de la entrada %d\n", nr.Yo, entrada)
+		nr.Logger.Printf("Nodo %d: Soy seguidor voy a esperar confirmacion del servidor para la entraa %d\n", nr.Yo, entrada)
 		<-nr.AplicarOp
+		nr.Logger.Printf("Nodo %d: Soy seguidor el servidor me ha enviado confirmacion para la entrada %d\n", nr.Yo, entrada)
 		//nr.Aplicada <- valor.Operacion.Valor
 	}
 }
@@ -864,6 +872,8 @@ func (nr *NodoRaft) envioDeLatido(nodo int, nextIndex int,
 func (nr *NodoRaft) comprometerEntradas() {
 	// CommitIndex -> indice de la entrada comprometida mas alta
 	nr.Logger.Printf("Soy lider y voy a ver si tengo entradas que comprometer\n")
+	fmt.Printf("El valor del commit index del lider al empezar comprometer entrada es: %d\n", nr.CommitIndex)
+
 	for entrada := nr.CommitIndex + 1; entrada < len(nr.Log); entrada++ {
 		// El lider solo compromete contando replicas las entradas del termino
 		// actual
@@ -883,6 +893,7 @@ func (nr *NodoRaft) comprometerEntradas() {
 			if confirmaciones > len(nr.Nodos)/2 {
 				nr.Logger.Printf("Soy lider y he conseguido mayoria para aplicar la entrada\n")
 				nr.CommitIndex = entrada
+				fmt.Printf("El valor del commit index del lider antes de enviar la respusta es: %d\n", nr.CommitIndex)
 				// Solicitud para aplicar la operacion en la maquina de estados
 				aplicarOp := AplicaOperacion{
 					Indice:    entrada,
