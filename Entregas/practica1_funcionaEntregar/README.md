@@ -22,28 +22,19 @@
  ssh-copy-id a816906@192.168.3.4
  
  
+## Ejecucion
+Ejecutar Barrera:
+- Poner todas las maquinas a ejecutar: go run barrier.go endpoints.txt <num> 
 
-### cd rapido a las carpetas
+Ejecutar Servidores:
+- Primero ejecutar cliente con: go run main.go <ip:puerto (del server)>
+    - go run main.go 192.168.3.2:31110
 
-# cliente
-cd /misc/alumnos/sd/sd2425/a816906/Practica1_G26/cmd/client
+- Ejecutar en maquina 192.168.3.2 el servidor x <ip:puerto (propios)>
+    - go run server_secuencial.go 192.168.3.2:31110
 
-# serv-secuencial
-cd /misc/alumnos/sd/sd2425/a816906/Practica1_G26/cmd/server-draft/serv-secuencial
+Ejecutar master-worker:
+ - Ejecutar en maquina 192.168.3.2 el master y lanzar las maquinas
+    - ./encenderMaquinas maquinas.txt
+    - go run master.go 192.168.3.2:31110
 
-# serv-concurrente
-cd /misc/alumnos/sd/sd2425/a816906/Practica1_G26/cmd/server-draft/server-conc
-
-# server-pool
-cd /misc/alumnos/sd/sd2425/a816906/Practica1_G26/cmd/server-draft/serv-pool
-
-# master
-cd /misc/alumnos/sd/sd2425/a816906/Practica1_G26/cmd/server-draft/serv-master
-
-# worker
-cd /misc/alumnos/sd/sd2425/a816906/Practica1_G26/cmd/server-draft/serv-worker
-
-
-
- Aroa:
- 
