@@ -267,11 +267,13 @@ func (nr *NodoRaft) someterOperacion(operacion TipoOperacion) (int, int,
 		nr.Log = append(nr.Log, entrada)
 		nr.Mux.Unlock()
 
-		nr.Logger.Printf("Soy lider y voy a esperar a la notificacion de aplicada por el canal nr.Aplicada\n")
+		nr.Logger.Printf("Soy lider y voy a esperar a la notificacion de " +
+			" aplicada por el canal nr.Aplicada\n")
 		//valor := <-nr.AplicarOp
 		//valorADevolver = valor.Operacion.Operacion
 		valor := <-nr.Aplicada
-		nr.Logger.Printf("Soy lider y se ha obtenido valor por el canar nr.Aplicada\n Se va a responder al cliente\n")
+		nr.Logger.Printf("Soy lider y se ha obtenido valor por el canar " +
+			"nr.Aplicada\n Se va a responder al cliente\n")
 		valorADevolver = valor.Operacion.Valor
 
 		nr.LastApplied = indiceEntrada
@@ -475,7 +477,8 @@ func (nr *NodoRaft) AppendEntries(args *ArgAppendEntries,
 		// Si el seguidor es consistente o no hay entradas
 		if args.PrevLogIndex == -1 || nr.esConsistente(args.PrevLogIndex,
 			args.PrevLogTerm) {
-			nr.Logger.Printf("Soy seguidor y respondo al lider que ha tenido exito")
+			nr.Logger.Printf("Soy seguidor y respondo al lider que ha tenido" +
+				" exito")
 			results.Success = true
 			go nr.guardarEntradasEnLog(args)
 		}
@@ -491,7 +494,8 @@ func (nr *NodoRaft) esConsistente(indice int, mandato int) bool {
 }
 
 func (nr *NodoRaft) guardarEntradasEnLog(args *ArgAppendEntries) {
-	nr.Logger.Printf("En guardar entradas con entrada %d. \n", args.Entrada.Index)
+	nr.Logger.Printf("En guardar entradas con entrada %d. \n",
+		args.Entrada.Index)
 	if !esLatido(args.Entrada) && len(args.Entradas) != 0 {
 		// Añade la nueva entrada y las anteriores si es necesario
 		// Indice del log donde empezar a insertar entradas
@@ -499,13 +503,8 @@ func (nr *NodoRaft) guardarEntradasEnLog(args *ArgAppendEntries) {
 		// Indica a partir de donde copiar de las entradas enviadas
 		indiceEntradas := 0
 
-		// Obtener valores para indiceLogInsertar e indiceNuevaEntrada
-		//nr.Logger.Printf("Entrando a posicion encontrada con indiceLog %d. \n", indiceLog)
-		//nr.Logger.Printf("Entrando a posicion encontrada con indiceEntradas %d. \n", indiceEntradas)
-		//nr.Logger.Printf("Entrando a posicion encontrada con nr.Log %v. \n", nr.Log)
-		//nr.Logger.Printf("Entrando a posicion encontrada con args.Entradas %v. \n", args.Entradas)
-
-		for !(posicionEncontrada(indiceLog, indiceEntradas, nr.Log, args.Entradas)) {
+		for !(posicionEncontrada(indiceLog, indiceEntradas, nr.Log,
+			args.Entradas)) {
 			indiceLog++
 			indiceEntradas++
 		}
@@ -526,10 +525,12 @@ func (nr *NodoRaft) guardarEntradasEnLog(args *ArgAppendEntries) {
 		}
 	}
 
-	nr.Logger.Printf("Nodo %d: Soy seguidor y el leaderCommit de args es %d y mi CommitIndex es %d\n", nr.Yo, args.LeaderCommit, nr.CommitIndex)
+	nr.Logger.Printf("Nodo %d: Soy seguidor y el leaderCommit de args es %d y "+
+		" mi CommitIndex es %d\n", nr.Yo, args.LeaderCommit, nr.CommitIndex)
 
 	if args.LeaderCommit > nr.CommitIndex {
-		nr.Logger.Printf("Nodo %d: Soy seguidor y voy a aplicar entradas en mi maquina\n", nr.Yo)
+		nr.Logger.Printf("Nodo %d: Soy seguidor y voy a aplicar entradas en mi"+
+			" maquina\n", nr.Yo)
 		nr.CommitIndex = min(args.LeaderCommit, len(nr.Log)-1)
 		nr.aplicarEntradasEnMaquinas()
 	}
@@ -543,7 +544,8 @@ func (nr *NodoRaft) aplicarEntradasEnMaquinas() {
 	if nr.CommitIndex > nr.LastApplied { // Se pueden aplicar nuevas entradas
 		// Entradas desde la ultima aplicada hasta la ultima comprometida
 		entradas = nr.Log[nr.LastApplied+1 : nr.CommitIndex+1]
-		nr.Logger.Printf("Nodo %d: Soy seguidor voy a aplicar las entradas %v\n", nr.Yo, entradas)
+		nr.Logger.Printf("Nodo %d: Soy seguidor voy a aplicar las entradas "+
+			"%v\n", nr.Yo, entradas)
 		nr.LastApplied = nr.CommitIndex // Actualizamos ultima entrada aplicada
 	}
 
@@ -553,13 +555,17 @@ func (nr *NodoRaft) aplicarEntradasEnMaquinas() {
 			Operacion: nr.Log[ultimaAplicada+entrada+1].Operacion,
 			Indice:    ultimaAplicada + entrada + 1,
 		}
-		nr.Logger.Printf("Nodo %d: Soy seguidor voy a notificar a mi servidor de la entrada %d\n", nr.Yo, entrada)
+		nr.Logger.Printf("Nodo %d: Soy seguidor voy a notificar a mi servidor"+
+			"	de la entrada %d\n", nr.Yo, entrada)
 		nr.AplicarOp <- solicitud
 		//valor := <-nr.AplicarOp
-		nr.Logger.Printf("Nodo %d: Soy seguidor he notificado a mi servidor de la entrada %d\n", nr.Yo, entrada)
-		nr.Logger.Printf("Nodo %d: Soy seguidor voy a esperar confirmacion del servidor para la entraa %d\n", nr.Yo, entrada)
+		nr.Logger.Printf("Nodo %d: Soy seguidor he notificado a mi servidor de"+
+			"	la entrada %d\n", nr.Yo, entrada)
+		nr.Logger.Printf("Nodo %d: Soy seguidor voy a esperar confirmacion del"+
+			" servidor para la entraa %d\n", nr.Yo, entrada)
 		<-nr.AplicarOp
-		nr.Logger.Printf("Nodo %d: Soy seguidor el servidor me ha enviado confirmacion para la entrada %d\n", nr.Yo, entrada)
+		nr.Logger.Printf("Nodo %d: Soy seguidor el servidor me ha enviado "+
+			"confirmacion para la entrada %d\n", nr.Yo, entrada)
 		//nr.Aplicada <- valor.Operacion.Valor
 	}
 }
@@ -576,7 +582,8 @@ func esLatido(entrada EntradaLog) bool {
 }
 
 // Devuelve true si se ha encontrado la posicion critica
-func posicionEncontrada(indiceLog int, indiceEntradas int, log []EntradaLog, entradas []EntradaLog) bool {
+func posicionEncontrada(indiceLog int, indiceEntradas int, log []EntradaLog,
+	entradas []EntradaLog) bool {
 	// Dentro de limites
 
 	if len(entradas) == 0 || len(log) == 0 {
@@ -632,29 +639,32 @@ func (nr *NodoRaft) enviarPeticionVoto(nodo int, args *ArgsPeticionVoto,
 	if err != nil {
 		return false
 	} else {
-		if reply.Term > nr.CurrentTerm {
-			// El que responde tiene mandato mayor al del candidato
-			nr.CurrentTerm = reply.Term
-			nr.VotedFor = -1
-			nr.SoySeguidor <- true
-		} else if reply.VoteGranted {
-			// Si el nodo me ha votado a mi
-			nr.NumVotos++
-			if nr.NumVotos > len(nr.Nodos)/2 {
-				// Se ha conseguido mayoria
-				for nodo := 0; nodo < len(nr.Nodos); nodo++ {
-					if nodo != nr.Yo {
-						nr.Mux.Lock()
-						nr.NextIndex[nodo] = len(nr.Log)
-						nr.MatchIndex[nodo] = -1
-						nr.Mux.Unlock()
+		nr.Mux.Lock()
+		if nr.Estado == CANDIDATO {
+			if reply.Term > nr.CurrentTerm {
+				// El que responde tiene mandato mayor al del candidato
+				nr.CurrentTerm = reply.Term
+				nr.VotedFor = -1
+				nr.SoySeguidor <- true
+			} else if reply.VoteGranted {
+				// Si el nodo me ha votado a mi
+				nr.NumVotos++
+				if nr.NumVotos > len(nr.Nodos)/2 {
+					// Se ha conseguido mayoria
+					for nodo := 0; nodo < len(nr.Nodos); nodo++ {
+						if nodo != nr.Yo {
+							//nr.Mux.Lock()
+							nr.NextIndex[nodo] = len(nr.Log)
+							nr.MatchIndex[nodo] = -1
+							//nr.Mux.Unlock()
+						}
 					}
+					nr.SoyLider <- true
 				}
-				nr.SoyLider <- true
 			}
 		}
+		nr.Mux.Unlock()
 	}
-
 	return true
 }
 
@@ -832,14 +842,16 @@ func (nr *NodoRaft) envioDeLatido(nodo int, nextIndex int,
 	err := nr.Nodos[nodo].CallTimeout("NodoRaft.AppendEntries", args,
 		&resultadoLatido, 33*time.Millisecond)
 	if err != nil {
-		nr.Logger.Printf("Soy lider y la llamada AppendEntries me esta dando un error\n")
+		nr.Logger.Printf("Soy lider y la llamada AppendEntries me esta dando" +
+			" un error\n")
 
 		// No bloquear en errores
 		return
 	}
 
 	if resultadoLatido.Success {
-		nr.Logger.Printf("Soy lider y resultado latido en termino %d es %t\n", resultadoLatido.Term, resultadoLatido.Success)
+		nr.Logger.Printf("Soy lider y resultado latido en termino %d es %t\n",
+			resultadoLatido.Term, resultadoLatido.Success)
 	}
 
 	if esLatido(args.Entrada) { // Enviado latido
@@ -871,8 +883,10 @@ func (nr *NodoRaft) envioDeLatido(nodo int, nextIndex int,
 
 func (nr *NodoRaft) comprometerEntradas() {
 	// CommitIndex -> indice de la entrada comprometida mas alta
-	nr.Logger.Printf("Soy lider y voy a ver si tengo entradas que comprometer\n")
-	fmt.Printf("El valor del commit index del lider al empezar comprometer entrada es: %d\n", nr.CommitIndex)
+	nr.Logger.Printf("Soy lider y voy a ver si tengo entradas que " +
+		"comprometer\n")
+	fmt.Printf("El valor del commit index del lider al empezar comprometer "+
+		"entrada es: %d\n", nr.CommitIndex)
 
 	for entrada := nr.CommitIndex + 1; entrada < len(nr.Log); entrada++ {
 		// El lider solo compromete contando replicas las entradas del termino
@@ -883,17 +897,21 @@ func (nr *NodoRaft) comprometerEntradas() {
 			// Comprobar cuantos de los nodos tienen un matchIndex mayor o igual
 			for nodo := 0; nodo < len(nr.Nodos); nodo++ {
 				if nr.MatchIndex[nodo] >= entrada {
-					nr.Logger.Printf("Soy lider y tengo %d confirmaciones\n", confirmaciones)
+					nr.Logger.Printf("Soy lider y tengo %d confirmaciones\n",
+						confirmaciones)
 					confirmaciones++
 				}
 			}
-			nr.Logger.Printf("Soy lider y para la entrada %d tengo %d confirmaciones\n", entrada, confirmaciones)
+			nr.Logger.Printf("Soy lider y para la entrada %d tengo %d "+
+				" confirmaciones\n", entrada, confirmaciones)
 
 			// Mirar si hay mayoria -> entonces comprometemos la entrada
 			if confirmaciones > len(nr.Nodos)/2 {
-				nr.Logger.Printf("Soy lider y he conseguido mayoria para aplicar la entrada\n")
+				nr.Logger.Printf("Soy lider y he conseguido mayoria para " +
+					"aplicar la entrada\n")
 				nr.CommitIndex = entrada
-				fmt.Printf("El valor del commit index del lider antes de enviar la respusta es: %d\n", nr.CommitIndex)
+				fmt.Printf("El valor del commit index del lider antes de "+
+					"enviar la respusta es: %d\n", nr.CommitIndex)
 				// Solicitud para aplicar la operacion en la maquina de estados
 				aplicarOp := AplicaOperacion{
 					Indice:    entrada,
@@ -901,9 +919,11 @@ func (nr *NodoRaft) comprometerEntradas() {
 				}
 				nr.Logger.Printf("Soy lider y voy a notificar a mi servidor\n")
 				nr.AplicarOp <- aplicarOp
-				nr.Logger.Printf("Soy lider y he notificado a mi servidor, voy a esperar su respuesta\n")
+				nr.Logger.Printf("Soy lider y he notificado a mi servidor, " +
+					"voy a esperar su respuesta\n")
 				valor := <-nr.AplicarOp // La aplico en el lider
-				nr.Logger.Printf("Soy lider me ha respondido mi servidor\n Se va a pasar notificacion para responder al cliente\n")
+				nr.Logger.Printf("Soy lider me ha respondido mi servidor\n Se" +
+					" va a pasar notificacion para responder al cliente\n")
 				nr.Aplicada <- valor
 			}
 		}

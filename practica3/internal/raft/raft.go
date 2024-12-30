@@ -56,9 +56,9 @@ const (
 )
 
 const (
-	Lider     = "lider"		// Estado lider
+	Lider     = "lider"     // Estado lider
 	Candidato = "candidato" // Estado candidato
-	Seguidor  = "seguidor"	// Estado seguidor
+	Seguidor  = "seguidor"  // Estado seguidor
 )
 
 type TipoOperacion struct {
@@ -103,20 +103,20 @@ type NodoRaft struct {
 
 	// Estado prersistente en todos los servidores - Actualizar antes de
 	// responder a RCPs
-	CurrentTerm int // Ultimo mandato que ha visto
-	VotedFor    int // Candidato por el que ha votado el nodo
-	Log 		[]EntradaLog	// Entradas de log
+	CurrentTerm int          // Ultimo mandato que ha visto
+	VotedFor    int          // Candidato por el que ha votado el nodo
+	Log         []EntradaLog // Entradas de log
 
 	// Estado volatil en servidores
 	CommitIndex int // Indice de la entrada mas alta a ser sometida
-	
+
 	// Empleados para raft con fallos - En este asumimos que no hay
 	// Estado volatil en servidores
-	LastApplied	int			// Indice de la mayor entrada de log
+	LastApplied int // Indice de la mayor entrada de log
 	// Estado volatil en liders - Reiniciar tras eleccion
-	NextIndex	map[int]int	// Indice de la siguiente entrada de log a enviar
-							// Para cada nodo
-	MatchIndex	map[int]int // indice de la mayor entrada de log
+	NextIndex map[int]int // Indice de la siguiente entrada de log a enviar
+	// Para cada nodo
+	MatchIndex map[int]int // indice de la mayor entrada de log
 
 }
 
@@ -281,7 +281,7 @@ func (nr *NodoRaft) someterOperacion(operacion TipoOperacion) (int, int,
 				}
 			}
 		}
-		if exitos > len(nr.Nodos) / 2 {
+		if exitos > len(nr.Nodos)/2 {
 			// Se han recibido mas de la mitad de los exitos
 			// Es decir, ha sido replicada en la mayoria de los servidores
 			nr.CommitIndex++
@@ -365,7 +365,7 @@ type RespuestaPeticionVoto struct {
 //
 // Determina si el nodo vota o no al que ha realizado la peticion
 // Le votara si el mandato recibido es mayor al propio, o si son iguales y
-// todavia no ha votado por otro candidado. En este caso el nodo pasara a ser 
+// todavia no ha votado por otro candidado. En este caso el nodo pasara a ser
 // seguidor si no lo era ya y actualizara sus campos.
 // En caso de recibir un mandato menor, respondera con su propio mandato y no le
 // votara
@@ -423,7 +423,6 @@ func esManejoLatido(entrada EntradaLog) bool {
 	return entrada == (EntradaLog{})
 }
 
-
 // args *ArgAppendEntries  argumentos para la llamada RPC
 //
 // results *Result  respuesta RPC
@@ -468,13 +467,11 @@ func (nr *NodoRaft) AppendEntries(args *ArgAppendEntries,
 	return nil
 }
 
-
 // args *ArgAppendEntries  argumentos de la llamada RPC
 //
 // results *Result  respuesta RPC
 //
-//
-//En esta primera version, añade la entrada al log
+// En esta primera version, añade la entrada al log
 func (nr *NodoRaft) manejarOperacion(args *ArgAppendEntries, results *Results) {
 	// Habra que modificarlo cuando se tengan en cuenta los errores
 	entradaLog := EntradaLog{args.Entries.Term, args.Entries.Operacion}
@@ -482,8 +479,8 @@ func (nr *NodoRaft) manejarOperacion(args *ArgAppendEntries, results *Results) {
 	nr.Log = append(nr.Log, entradaLog)
 	nr.Mux.Unlock()
 	nr.Logger.Printf("(Mandato: %d, Op: %s, Clave: %s, Valor: %s)",
-			args.Entries.Term, args.Entries.Operacion.Operacion,
-			args.Entries.Operacion.Clave, args.Entries.Operacion.Valor)
+		args.Entries.Term, args.Entries.Operacion.Operacion,
+		args.Entries.Operacion.Clave, args.Entries.Operacion.Valor)
 	results.Success = true
 }
 
@@ -547,7 +544,6 @@ func (nr *NodoRaft) enviarPeticionVoto(nodo int, args *ArgsPeticionVoto,
 
 }
 
-
 // nr *NodoRaft Estructura nr del nodo
 //
 // Realiza la funcionalidad cuando el nodo es seguidor
@@ -564,7 +560,6 @@ func soySeguidor(nr *NodoRaft) {
 			"presento como candidato.\n", nr.Yo)
 	}
 }
-
 
 // nr *NodoRaft Estructura nr del nodo
 //
@@ -590,7 +585,6 @@ func soyCandidato(nr *NodoRaft) {
 	}
 }
 
-
 // nr *NodoRaft Estructura nr del nodo
 //
 // Realiza la funcionalidad cuando el nodo es lider
@@ -598,7 +592,7 @@ func soyLider(nr *NodoRaft) {
 	nr.IdLider = nr.Yo
 	// La frecuencia de látidos no debe ser superior a 20 veces por segundo
 	timer := time.NewTimer(50 * time.Millisecond)
-	enviarLatioosATodos(nr)
+	enviarLatidosATodos(nr)
 	select {
 	case <-timer.C:
 		// Se vuelven a enviar los latidos pasados 50 milisegundos
@@ -625,7 +619,6 @@ func protocoloRaft(nr *NodoRaft) {
 		}
 	}
 }
-
 
 // nr *NodoRaft Estructura nr del nodo
 //
@@ -676,7 +669,7 @@ func (nr *NodoRaft) enviarLatido(nodo int, args *ArgAppendEntries,
 			// El nodo al que envio el latido tiene mayor mandato
 			// Actualizo mi mandato al nuevo
 			nr.CurrentTerm = results.Term
-			// Como estoy enviando latidos soy lider, debo dejar de serlo
+			// Como estoy enviando latidos soy lider pero debo dejar de serlo
 			nr.IdLider = -1
 			nr.SoySeguidor <- true
 		}
@@ -684,11 +677,10 @@ func (nr *NodoRaft) enviarLatido(nodo int, args *ArgAppendEntries,
 	}
 }
 
-
 // nr *NodoRaft Estructura nr del nodo
 //
 // Envia un latido a todos los nodos menos a si mismo
-func enviarLatioosATodos(nr *NodoRaft) {
+func enviarLatidosATodos(nr *NodoRaft) {
 	nr.Logger.Printf("Soy %d y envío latidos", nr.Yo)
 
 	var resultados Results
