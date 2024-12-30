@@ -13,13 +13,10 @@ package gf
 import (
 	"os"
 	"practica2/com"
-	"sync"
 )
 
 type Fichero struct {
 	nombreFichero string
-	Mutex         sync.Mutex
-	// Para asegurar que no se realicen varias operaciones concurrentes
 }
 
 // CrearFichero crea un nuevo archivo con el nombre especificado y devuelve un
@@ -28,7 +25,7 @@ func CrearFichero(nombreFichero string) *Fichero {
 	com.Depuracion("GestorFichero - CrearFichero: Estoy creando el fichero para leer o escribir")
 	_, err := os.Create(nombreFichero)
 	com.CheckError(err)
-	fichero := Fichero{nombreFichero: nombreFichero, Mutex: sync.Mutex{}}
+	fichero := Fichero{nombreFichero: nombreFichero}
 	com.Depuracion("GestorFichero - CrearFichero: El fichero se ha creado correctamente")
 	return &fichero
 }
@@ -37,16 +34,14 @@ func CrearFichero(nombreFichero string) *Fichero {
 // devuelve como un string.
 func (fichero *Fichero) Leer() string {
 	com.Depuracion("GestorFichero - Leer: Se va a leer de fichero")
-	fichero.Mutex.Lock()
 
 	// Leer el contenido del fichero
 	contenidoBytes, err := os.ReadFile(fichero.nombreFichero)
-	fichero.Mutex.Unlock()
 	com.CheckError(err)
 
 	// Convertir el contenido del fichero a string
 	contenidoFichero := string(contenidoBytes)
-	com.Depuracion("GestorFichero - Leer: Se ha leido el texto: "+contenidoFichero)
+	com.Depuracion("GestorFichero - Leer: Se ha leido el texto: " + contenidoFichero)
 
 	return contenidoFichero
 }
@@ -55,7 +50,6 @@ func (fichero *Fichero) Leer() string {
 // el objeto Fichero.
 func (fichero *Fichero) Escribir(texto string) {
 	com.Depuracion("GestorFichero - Escribir: Se va a escribir")
-	fichero.Mutex.Lock()
 
 	// Abrir fichero con permisos y append para escribir al final
 	f, err := os.OpenFile(fichero.nombreFichero, os.O_WRONLY|os.O_APPEND, 0666)
@@ -66,6 +60,5 @@ func (fichero *Fichero) Escribir(texto string) {
 	_, err = f.WriteString(texto)
 	com.CheckError(err)
 
-	fichero.Mutex.Unlock()
 	com.Depuracion("GestorFichero - Escribir: Se ha escrito correctamente")
 }
