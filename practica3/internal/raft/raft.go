@@ -258,9 +258,11 @@ func (nr *NodoRaft) someterOperacion(operacion TipoOperacion) (int, int,
 
 		var resultados Results
 		exitos := 0
+
+		// Soy el lider asi que envio la nueva entrada a todos los nodos
 		for i := 0; i < len(nr.Nodos); i++ {
 			if i != nr.Yo {
-				// Crear la estructura ArgAppendEntries
+				// Crear la estructura ArgAppendEntries con la nueva entrada
 				argumentos := ArgAppendEntries{
 					Term:         mandato,
 					LeaderId:     nr.Yo,
@@ -270,6 +272,7 @@ func (nr *NodoRaft) someterOperacion(operacion TipoOperacion) (int, int,
 				nr.Nodos[i].CallTimeout("NodoRaft.AppendEntries", &argumentos,
 					&resultados, 33*time.Millisecond)
 			}
+			// Compruebo si el seguidor ha aceptado la entrada
 			if resultados.Success {
 				exitos++
 			} else {
@@ -286,6 +289,8 @@ func (nr *NodoRaft) someterOperacion(operacion TipoOperacion) (int, int,
 			// Es decir, ha sido replicada en la mayoria de los servidores
 			nr.CommitIndex++
 			valorADevolver = "Commited"
+			// Indicamos con un print que se ha comprometido en la maquina de
+			// estados -> mejorar en P4
 			fmt.Printf("Operacion comprometida\n")
 		}
 		idLider = nr.Yo
@@ -417,7 +422,7 @@ type Results struct {
 // La funcion devuelve true si la entrada es un EntradaLog vacio, indicando
 // que el mensaje es un latido y false si tiene contenido, indicando que es
 // una operacion
-func esManejoLatido(entrada EntradaLog) bool {
+func esLatido(entrada EntradaLog) bool {
 	// Si es un log vacio es que manejamos un latido
 	// Si no es vacio, manejamos una operacion
 	return entrada == (EntradaLog{})
@@ -435,7 +440,7 @@ func (nr *NodoRaft) AppendEntries(args *ArgAppendEntries,
 		" %d y entradas %v\n",
 		nr.Yo, args.LeaderId, args.Term, args.Entries)
 
-	if esManejoLatido(args.Entries) {
+	if esLatido(args.Entries) {
 		switch {
 		case args.Term > nr.CurrentTerm:
 			// El mandato recibido es mayor, asi que es de un lider
