@@ -56,9 +56,9 @@ const (
 )
 
 const (
-	Lider     = "lider"     // Estado lider
-	Candidato = "candidato" // Estado candidato
-	Seguidor  = "seguidor"  // Estado seguidor
+	LIDER     = "lider"     // Estado lider
+	CANDIDATO = "candidato" // Estado candidato
+	SEGUIDOR  = "seguidor"  // Estado seguidor
 )
 
 type TipoOperacion struct {
@@ -93,8 +93,8 @@ type NodoRaft struct {
 	Logger *log.Logger
 
 	// Vuestros datos aqui.
-	NumeroVotos int    // Numero de votos recibidos en la eleccion
-	Estado      string // Estado del nodo: Lider, Seguidor o Candidato
+	NumVotos int    // Numero de votos recibidos en la eleccion
+	Estado   string // Estado del nodo: Lider, Seguidor o Candidato
 
 	// Canales
 	Latido      chan bool // Canal para latidos
@@ -141,8 +141,8 @@ func NuevoNodo(nodos []rpctimeout.HostPort, yo int,
 	nr.Yo = yo
 	nr.IdLider = -1
 	// Inicializacion del resto de variables de la estructura
-	nr.NumeroVotos = 0
-	nr.Estado = Seguidor // Empiezan siendo seguidor hasta que haya eleccion
+	nr.NumVotos = 0
+	nr.Estado = SEGUIDOR // Empiezan siendo seguidor hasta que haya eleccion
 	nr.CurrentTerm = 0
 	nr.VotedFor = -1
 	nr.CommitIndex = 0
@@ -393,7 +393,7 @@ func (nr *NodoRaft) PedirVoto(peticion *ArgsPeticionVoto,
 		reply.Term = peticion.Term
 		reply.VotoDado = true
 
-		if nr.Estado != Seguidor {
+		if nr.Estado != SEGUIDOR {
 			nr.SoySeguidor <- true
 		}
 	}
@@ -443,11 +443,11 @@ func (nr *NodoRaft) AppendEntries(args *ArgAppendEntries,
 			nr.IdLider = args.LeaderId
 			nr.CurrentTerm = args.Term
 			results.Term = nr.CurrentTerm
-			if nr.Estado == Lider {
+			if nr.Estado == LIDER {
 				// Si era lider, dejo de serlo
 				nr.SoySeguidor <- true
 			}
-			if nr.Estado == Candidato || nr.Estado == Seguidor {
+			if nr.Estado == CANDIDATO || nr.Estado == SEGUIDOR {
 				// Notifico que he recibido el latido
 				nr.Latido <- true
 			}
@@ -532,9 +532,9 @@ func (nr *NodoRaft) enviarPeticionVoto(nodo int, args *ArgsPeticionVoto,
 			nr.CurrentTerm = reply.Term
 			nr.VotedFor = -1
 		} else if reply.VotoDado {
-			nr.NumeroVotos++ // Me nan dado el voto
+			nr.NumVotos++ // Me nan dado el voto
 			// Si he conseguido mayoria paso a ser lider
-			if nr.NumeroVotos > len(nr.Nodos)/2 {
+			if nr.NumVotos > len(nr.Nodos)/2 {
 				nr.SoyLider <- true
 			}
 			// Mas restricciones en la siguiente practica
@@ -551,11 +551,11 @@ func soySeguidor(nr *NodoRaft) {
 	select {
 	case <-nr.Latido:
 		// Llega latido asi que sigo siendo seguidor
-		nr.Estado = Seguidor
+		nr.Estado = SEGUIDOR
 	case <-time.After(timeoutAleatorio()):
 		// Si expira timeout se inicia el proceso de elección de líder
 		nr.IdLider = -1
-		nr.Estado = Candidato
+		nr.Estado = CANDIDATO
 		nr.Logger.Printf("Soy %d y ha expirado el timeout. Así que me "+
 			"presento como candidato.\n", nr.Yo)
 	}
@@ -571,17 +571,17 @@ func soyCandidato(nr *NodoRaft) {
 	select {
 	case <-nr.SoySeguidor:
 		// Recibo un latido o un mensaje de ser seguidor, cambio a seguidor
-		nr.Estado = Seguidor
+		nr.Estado = SEGUIDOR
 	case <-nr.Latido:
 		// Recibo un latido o un mensaje de ser seguidor, cambio a seguidor
-		nr.Estado = Seguidor
+		nr.Estado = SEGUIDOR
 	case <-nr.SoyLider:
 		//Ha recibido mayoria de votos
-		nr.Estado = Lider
+		nr.Estado = LIDER
 	case <-timer.C:
 		//Si expira el timeout empieza me pongo como candidato y se empezara una
 		// nueva elección
-		nr.Estado = Candidato
+		nr.Estado = CANDIDATO
 	}
 }
 
@@ -596,10 +596,10 @@ func soyLider(nr *NodoRaft) {
 	select {
 	case <-timer.C:
 		// Se vuelven a enviar los latidos pasados 50 milisegundos
-		nr.Estado = Lider
+		nr.Estado = LIDER
 	case <-nr.SoySeguidor:
 		// Hay otro con mandato mayor
-		nr.Estado = Seguidor
+		nr.Estado = SEGUIDOR
 	}
 }
 
@@ -608,13 +608,13 @@ func soyLider(nr *NodoRaft) {
 // Maquina de estados de raft
 func protocoloRaft(nr *NodoRaft) {
 	for {
-		for nr.Estado == Seguidor {
+		for nr.Estado == SEGUIDOR {
 			soySeguidor(nr)
 		}
-		for nr.Estado == Candidato {
+		for nr.Estado == CANDIDATO {
 			soyCandidato(nr)
 		}
-		for nr.Estado == Lider {
+		for nr.Estado == LIDER {
 			soyLider(nr)
 		}
 	}
@@ -628,7 +628,7 @@ func comenzarEleccion(nr *NodoRaft) {
 	nr.Logger.Printf("Soy %d y empiezo elección", nr.Yo)
 	nr.CurrentTerm++
 	nr.VotedFor = nr.Yo
-	nr.NumeroVotos = 1
+	nr.NumVotos = 1
 
 	peticionParaLider := ArgsPeticionVoto{
 		Term:        nr.CurrentTerm,
