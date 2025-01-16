@@ -1,0 +1,63 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: raft-service
+  labels:
+    app: rep
+spec:
+  clusterIP: None
+  selector:      # tiene que coincidir con label definido en pod de StatefulSet
+    app: rep  # Para dar de alta automaticamente en DNS a los PODS ligados
+  ports:
+  - port: 6000
+    name: servidor-port
+    protocol: TCP
+    targetPort: 6000
+
+
+---
+kind: StatefulSet
+apiVersion: apps/v1
+metadata:
+  name: raft
+spec:
+  serviceName: raft-service
+  replicas: 3
+  podManagementPolicy: Parallel   # por defecto seria OrderedReady (secuencial)
+  selector:
+    matchLabels:
+      app: rep    # tiene que corresponder a .spec.template.metadata.labels
+  template:
+    metadata:
+      labels:
+        app: rep
+    spec:
+      terminationGracePeriodSeconds: 10
+      containers:
+      - name: srvraft
+        image: localhost:5001/srvraft:latest
+        env:
+        - name: MISUBDOMINIODNS
+          value: raft-service.default.svc.cluster.local
+        - name: MINOMBREPOD		# primera replica r-0, segunda r-1, etc
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        command:
+        - srvraft
+        - $(MINOMBREPOD)
+        ports:
+        - containerPort: 6000
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: cliente
+spec:
+  containers:
+    - name: cltraft
+      image: localhost:5001/cltraft:latest
+      command:
+        - cltraft
+      ports:
+        - containerPort: 7000
