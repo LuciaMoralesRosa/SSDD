@@ -5,6 +5,8 @@
 ## Contenido
  Este repositorio contiene las prácticas de la asignatura de Sistemas 
  Distribuidos de Unizar.
+ Especialmente destacable la práctica 4 con la implementacion del
+ algoritmo de consenso RAFT
 
 ### Práctica 1
 - Implementación de una barrera distribuida.
